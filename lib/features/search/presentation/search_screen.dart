@@ -1,0 +1,607 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:soundwave/app/theme/app_colors.dart';
+import 'package:soundwave/app/theme/text_styles.dart';
+import 'package:soundwave/app/theme/theme_model.dart';
+import 'package:soundwave/core/widgets/album_artwork.dart';
+import 'package:soundwave/core/widgets/empty_state_widget.dart';
+import 'package:soundwave/core/widgets/glass_card.dart';
+import 'package:soundwave/core/widgets/gradient_button.dart';
+import 'package:soundwave/features/online/widgets/download_options_sheet.dart';
+import 'package:soundwave/features/player/models/song_model.dart';
+import 'package:soundwave/shared/providers/download_provider.dart';
+import 'package:soundwave/shared/providers/library_provider.dart';
+import 'package:soundwave/shared/providers/player_provider.dart';
+import 'package:soundwave/shared/providers/search_provider.dart';
+import 'package:soundwave/shared/providers/theme_provider.dart';
+
+class SearchScreen extends ConsumerStatefulWidget {
+  const SearchScreen({super.key});
+
+  @override
+  ConsumerState<SearchScreen> createState() => _SearchScreenState();
+}
+
+class _SearchScreenState extends ConsumerState<SearchScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _focusNode = FocusNode();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final searchState = ref.watch(searchProvider);
+    final searchNotifier = ref.read(searchProvider.notifier);
+    final activeTheme = ref.watch(themeProvider);
+    final selectedChipTextColor =
+        activeTheme == AppThemeType.midnightOled ||
+                activeTheme == AppThemeType.emeraldAurora
+            ? const Color(0xFF090D16)
+            : Colors.white;
+
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(left: 20, right: 20, top: 16, bottom: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Search', style: AppTextStyles.screenTitle),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: activeTheme.primaryAccent.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: activeTheme.primaryAccent.withValues(alpha: 0.35),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.bolt_rounded, color: activeTheme.primaryAccent, size: 14),
+                        const SizedBox(width: 4),
+                        Text(
+                          '320 kbps Streams',
+                          style: TextStyle(
+                            color: activeTheme.primaryAccent,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Search Text Field
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              child: GlassCard(
+                borderRadius: 18,
+                blur: 0,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+                color: AppColors.glassWhiteMedium,
+                borderColor: searchState.query.isNotEmpty
+                    ? activeTheme.primaryAccent.withValues(alpha: 0.5)
+                    : AppColors.glassBorderSubtle,
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.search_rounded,
+                      color: activeTheme.primaryAccent,
+                      size: 24,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        focusNode: _focusNode,
+                        style: const TextStyle(color: Colors.white, fontSize: 15),
+                        cursorColor: activeTheme.primaryAccent,
+                        decoration: InputDecoration(
+                          hintText: 'Search any song, artist, movie or lyrics...',
+                          hintStyle: TextStyle(
+                            color: AppColors.textMuted.withValues(alpha: 0.8),
+                            fontSize: 13.5,
+                          ),
+                          border: InputBorder.none,
+                        ),
+                        onChanged: (val) {
+                          searchNotifier.onQueryChanged(val);
+                        },
+                        onSubmitted: (val) {
+                          searchNotifier.submitSearch(val);
+                        },
+                      ),
+                    ),
+                    if (searchState.isSearchingOnline)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(activeTheme.primaryAccent),
+                          ),
+                        ),
+                      ),
+                    if (searchState.query.isNotEmpty || _searchController.text.isNotEmpty)
+                      IconButton(
+                        tooltip: 'Clear search',
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          color: AppColors.textMuted,
+                          size: 20,
+                        ),
+                        onPressed: () {
+                          _searchController.clear();
+                          searchNotifier.onQueryChanged('');
+                        },
+                      ),
+                  ],
+                ),
+              ),
+            ),
+
+            // Filter Chips
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+              physics: const BouncingScrollPhysics(),
+              child: Row(
+                children: SearchFilter.values.map((filter) {
+                  final isSelected = searchState.filter == filter;
+                  String label = 'All';
+                  switch (filter) {
+                    case SearchFilter.all:
+                      label = 'All';
+                      break;
+                    case SearchFilter.online:
+                      label = 'Online';
+                      break;
+                    case SearchFilter.songs:
+                      label = 'Songs';
+                      break;
+                    case SearchFilter.artists:
+                      label = 'Artists';
+                      break;
+                    case SearchFilter.albums:
+                      label = 'Albums';
+                      break;
+                    case SearchFilter.localOnly:
+                      label = 'Device Audio';
+                      break;
+                  }
+
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: FilterChip(
+                      selected: isSelected,
+                      checkmarkColor: selectedChipTextColor,
+                      label: Text(label),
+                      labelStyle: TextStyle(
+                        fontSize: 12,
+                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                        color: isSelected ? selectedChipTextColor : AppColors.textSecondary,
+                      ),
+                      backgroundColor: AppColors.glassWhiteMedium,
+                      selectedColor: activeTheme.primaryAccent,
+                      side: BorderSide(
+                        color: isSelected
+                            ? activeTheme.highlightColor
+                            : AppColors.glassBorderSubtle,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      onSelected: (_) {
+                        HapticFeedback.selectionClick();
+                        searchNotifier.setFilter(filter);
+                      },
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+
+            // Main Content: Live Results OR Trending/Recent
+            Expanded(
+              child: _searchController.text.trim().isEmpty
+                  ? _buildDefaultExploreView(context, searchState, searchNotifier, activeTheme)
+                  : _buildSearchResults(context, searchState, activeTheme),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDefaultExploreView(
+    BuildContext context,
+    SearchState state,
+    SearchNotifier notifier,
+    AppThemeType activeTheme,
+  ) {
+    return RefreshIndicator(
+      color: activeTheme.primaryAccent,
+      backgroundColor: activeTheme.secondaryBackground,
+      onRefresh: notifier.refreshTrending,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+        padding: const EdgeInsets.only(left: 20, right: 20, top: 12, bottom: 175),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Trending Online Songs
+            if (state.trendingOnline.isNotEmpty) ...[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.whatshot_rounded, color: activeTheme.highlightColor, size: 20),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Trending Online',
+                        style: AppTextStyles.sectionTitle.copyWith(fontSize: 16),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    '320 kbps',
+                    style: TextStyle(
+                      color: activeTheme.primaryAccent,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: state.trendingOnline.length.clamp(0, 5),
+                itemBuilder: (context, index) {
+                  final song = state.trendingOnline[index];
+                  return _buildSearchResultTile(song, state.trendingOnline, activeTheme);
+                },
+              ),
+              const SizedBox(height: 24),
+            ],
+
+            // Recent Searches
+            if (state.recentSearches.isNotEmpty) ...[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Recent Searches',
+                    style: AppTextStyles.sectionTitle.copyWith(fontSize: 16),
+                  ),
+                  GestureDetector(
+                    onTap: () => notifier.clearHistory(),
+                    child: Text(
+                      'Clear All',
+                      style: AppTextStyles.actionLink.copyWith(
+                        color: AppColors.textMuted,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: state.recentSearches.map((query) {
+                  return GestureDetector(
+                    onTap: () {
+                      _searchController.text = query;
+                      notifier.submitSearch(query);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AppColors.glassWhiteMedium,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: AppColors.glassBorderSubtle),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.history_rounded,
+                            color: AppColors.textMuted,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            query,
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 24),
+            ],
+
+            // Popular Artists & Moods
+            Text(
+              'Explore Online Hits',
+              style: AppTextStyles.sectionTitle.copyWith(fontSize: 16),
+            ),
+            const SizedBox(height: 10),
+            _buildPopularSearchTile('Arijit Singh Hits', Icons.trending_up_rounded, activeTheme),
+            _buildPopularSearchTile('Diljit Dosanjh', Icons.trending_up_rounded, activeTheme),
+            _buildPopularSearchTile('Shreya Ghoshal', Icons.trending_up_rounded, activeTheme),
+            _buildPopularSearchTile('Anirudh Ravichander', Icons.electric_bolt_rounded, activeTheme),
+            _buildPopularSearchTile('The Weeknd', Icons.headphones_rounded, activeTheme),
+            _buildPopularSearchTile('Taylor Swift', Icons.favorite_rounded, activeTheme),
+            _buildPopularSearchTile('Lo-Fi Chill Beats', Icons.spa_rounded, activeTheme),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPopularSearchTile(String title, IconData icon, AppThemeType activeTheme) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(icon, color: activeTheme.primaryAccent, size: 20),
+      title: Text(title, style: AppTextStyles.songTitle.copyWith(fontSize: 14)),
+      trailing: const Icon(
+        Icons.north_west_rounded,
+        color: AppColors.textMuted,
+        size: 16,
+      ),
+      onTap: () {
+        HapticFeedback.selectionClick();
+        _searchController.text = title;
+        ref.read(searchProvider.notifier).submitSearch(title);
+      },
+    );
+  }
+
+  Widget _buildSearchResults(
+    BuildContext context,
+    SearchState state,
+    AppThemeType activeTheme,
+  ) {
+    // Prioritize high-quality online full songs first, followed by local device audio
+    final combinedSongs = <SongModel>[];
+    if (state.filter != SearchFilter.localOnly) {
+      combinedSongs.addAll(state.onlineResults);
+    }
+    if (state.filter != SearchFilter.online) {
+      combinedSongs.addAll(state.results);
+    }
+
+    if (combinedSongs.isEmpty) {
+      if (state.isSearchingOnline) {
+        return Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(color: activeTheme.primaryAccent),
+              const SizedBox(height: 16),
+              const Text(
+                'Searching online streams...',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+              ),
+            ],
+          ),
+        );
+      }
+
+      return EmptyStateWidget(
+        icon: Icons.music_off_rounded,
+        title: 'No results found',
+        message: 'We could not find anything matching "${state.query}". Try searching for another artist or song.',
+        buttonText: 'Clear search',
+        onButtonPressed: () {
+          _searchController.clear();
+          ref.read(searchProvider.notifier).onQueryChanged('');
+        },
+      );
+    }
+
+    return ListView.builder(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.only(left: 20, right: 20, top: 10, bottom: 175),
+      itemCount: combinedSongs.length,
+      itemBuilder: (context, index) {
+        final song = combinedSongs[index];
+        return _buildSearchResultTile(song, combinedSongs, activeTheme);
+      },
+    );
+  }
+
+  Widget _buildSearchResultTile(
+    SongModel song,
+    List<SongModel> queue,
+    AppThemeType activeTheme,
+  ) {
+    final playerState = ref.watch(playerProvider);
+    final libState = ref.watch(libraryProvider);
+    final downloadState = ref.watch(downloadProvider);
+
+    final isCurrent = playerState.currentSong?.id == song.id;
+    final isPlaying = isCurrent && playerState.isPlaying;
+    final isOnline = song.id.startsWith('online_') || !song.isLocal;
+    final downloadedSong =
+        libState.downloadedSongs.where((s) => s.id == song.id).firstOrNull;
+    final isDownloaded = downloadedSong != null;
+    final downloadedArtwork = (downloadedSong?.artworkPath?.isNotEmpty ?? false)
+        ? downloadedSong!.artworkPath
+        : null;
+    final isDownloading = downloadState.isDownloading(song.id);
+    final downloadProgress = downloadState.getProgress(song.id);
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      child: GlassCard(
+        borderRadius: 16,
+        blur: 0,
+        color: isCurrent
+            ? activeTheme.secondaryBackground.withValues(alpha: 0.90)
+            : AppColors.glassWhiteMedium,
+        borderColor: isCurrent
+            ? activeTheme.primaryAccent.withValues(alpha: 0.65)
+            : AppColors.glassBorderSubtle,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          ref.read(playerProvider.notifier).playTrack(song, queue: queue);
+        },
+        child: Row(
+          children: [
+            AlbumArtwork(
+              size: 46,
+              borderRadius: 12,
+              artworkUrl: downloadedArtwork ?? song.artworkPath,
+              albumId: song.albumId,
+              songId: song.rawId,
+              songTitle: song.title,
+              songArtist: song.artist,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          song.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.songTitle.copyWith(
+                            fontSize: 14,
+                            color: isCurrent ? activeTheme.primaryAccent : Colors.white,
+                          ),
+                        ),
+                      ),
+                      if (isOnline) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: (isDownloaded
+                                    ? Colors.greenAccent
+                                    : activeTheme.primaryAccent)
+                                .withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            isDownloaded ? 'OFFLINE' : '320K',
+                            style: TextStyle(
+                              color: isDownloaded
+                                  ? Colors.greenAccent
+                                  : activeTheme.primaryAccent,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.4,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${song.artist} • ${song.album}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.artistName.copyWith(fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            if (isOnline) ...[
+              IconButton(
+                icon: isDownloading
+                    ? SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          value: downloadProgress > 0 ? downloadProgress : null,
+                          strokeWidth: 2,
+                          color: activeTheme.primaryAccent,
+                        ),
+                      )
+                    : Icon(
+                        isDownloaded
+                            ? Icons.check_circle_rounded
+                            : Icons.arrow_circle_down_rounded,
+                        color: isDownloaded
+                            ? Colors.greenAccent
+                            : activeTheme.primaryAccent,
+                        size: 24,
+                      ),
+                tooltip: isDownloaded ? 'Downloaded Offline' : 'Download 320kbps',
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  showDownloadOptionsSheet(context, song);
+                },
+              ),
+            ],
+            const SizedBox(width: 4),
+            GradientButton.circle(
+              size: 34,
+              gradient: isCurrent && isPlaying
+                  ? activeTheme.accentGradient
+                  : const LinearGradient(
+                      colors: [Colors.white, Color(0xFFE8EEFF)],
+                    ),
+              glowColor: activeTheme.primaryAccent,
+              onPressed: () {
+                if (isCurrent) {
+                  ref.read(playerProvider.notifier).togglePlayPause();
+                } else {
+                  ref.read(playerProvider.notifier).playTrack(song, queue: queue);
+                }
+              },
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 180),
+                transitionBuilder: (child, animation) => ScaleTransition(
+                  scale: Tween<double>(begin: 0.85, end: 1.0).animate(animation),
+                  child: FadeTransition(opacity: animation, child: child),
+                ),
+                child: Icon(
+                  isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                  key: ValueKey<bool>(isPlaying),
+                  color: isCurrent && isPlaying ? Colors.white : Colors.black87,
+                  size: 20,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
