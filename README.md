@@ -10,6 +10,16 @@ Try it in the browser: **[getsoundwave.vercel.app](https://getsoundwave.vercel.a
 
 > The web build supports online streaming, search and playback. Downloads and local-device music scanning are mobile-only features, since browsers can't write to device storage or read the phone's music library.
 
+## Screenshots
+
+<p align="center">
+  <img src="screenshots/home.jpg" width="240" alt="Home and Trending" />
+  <img src="screenshots/now-playing.jpg" width="240" alt="Now Playing" />
+  <img src="screenshots/profile.jpg" width="240" alt="Profile and Settings" />
+</p>
+
+<p align="center"><em>Home &amp; Trending &nbsp;·&nbsp; Now Playing &nbsp;·&nbsp; Profile &amp; Settings</em></p>
+
 ## Key Features
 
 - **Single-Stream Audio Engine (`just_audio` + `audio_service`)**: Guaranteed single-track playback with monotonic generation tracking, audio focus handling, lockscreen / notification media controls, and zero overlapping playback.
