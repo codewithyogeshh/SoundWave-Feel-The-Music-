@@ -6,6 +6,8 @@ A modern, offline-first Flutter music player with 320 kbps online streaming, hig
 
 Try it in the browser: **[getsoundwave.vercel.app](https://getsoundwave.vercel.app)**
 
+**Android app:** [Download the latest APK](https://github.com/codewithyogeshh/SoundWave-Feel-The-Music-/releases/latest) and install it on your phone to get offline downloads and local library scanning.
+
 > The web build supports online streaming, search and playback. Downloads and local-device music scanning are mobile-only features, since browsers can't write to device storage or read the phone's music library.
 
 ## Key Features
@@ -41,6 +43,8 @@ flutter run
 # 5. Build release APK
 flutter build apk --release
 ```
+
+Release APKs are built automatically by GitHub Actions: pushing a `v*` tag (or running the **Build APK** workflow manually) builds the APK and attaches it to a GitHub release.
 
 ## Author
 
