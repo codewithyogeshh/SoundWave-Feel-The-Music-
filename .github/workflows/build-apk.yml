@@ -1,0 +1,74 @@
+name: Build APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release tag, e.g. v1.2.0"
+        required: true
+        default: "v1.2.0"
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Show Flutter version
+        run: flutter --version
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - name: Prepare APK
+        shell: bash
+        env:
+          TAG: ${{ inputs.version || github.ref_name }}
+        run: |
+          mkdir -p dist
+          cp build/app/outputs/flutter-apk/app-release.apk "dist/soundwave-${TAG}.apk"
+          ls -lh dist
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.version || github.ref_name }}
+          name: SoundWave ${{ inputs.version || github.ref_name }}
+          body: |
+            SoundWave – Feel the Music
+
+            **Install on Android**
+            1. Download `soundwave-*.apk` below.
+            2. Open the file on your phone and allow "Install unknown apps" when asked.
+            3. Install and open SoundWave.
+
+            Or try the web version: https://getsoundwave.vercel.app
+
+            Notes:
+            - Release build, unsigned for Play Store (debug-signed, so it installs directly).
+            - Downloads and local library scanning work on Android; the web build streams only.
+          files: dist/*.apk
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
