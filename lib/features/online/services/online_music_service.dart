@@ -5,7 +5,13 @@ import 'package:http/http.dart' as http;
 import 'package:soundwave/features/player/models/song_model.dart';
 
 class OnlineMusicService {
-  static const String _directBaseUrl = 'https://www.jiosaavn.com/api.php';
+  static const String _mobileBaseUrl = 'https://www.jiosaavn.com/api.php';
+
+  /// Browsers block direct calls to JioSaavn (the API sends no CORS headers),
+  /// so the web build uses the same-origin proxy deployed at /api/saavn.
+  /// Mobile builds keep calling the API directly.
+  static String get _directBaseUrl =>
+      kIsWeb ? '${Uri.base.origin}/api/saavn' : _mobileBaseUrl;
   static const String _commonParams = '_format=json&_marker=0&cc=in';
   static const Map<String, String> _headers = {
     'User-Agent':
@@ -232,7 +238,7 @@ class OnlineMusicService {
       isLocal: false,
       isHd: true,
       genre: language,
-      dateAdded: DateTime.now(),
+      dataAdded: DateTime.now(),
     );
   }
 
