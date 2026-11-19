@@ -13,9 +13,9 @@ Try it in the browser: **[getsoundwave.vercel.app](https://getsoundwave.vercel.a
 ## Screenshots
 
 <p align="center">
-  <img src="screenshots/home.jpg" width="240" alt="Home and Trending" />
-  <img src="screenshots/now-playing.jpg" width="240" alt="Now Playing" />
-  <img src="screenshots/profile.jpg" width="240" alt="Profile and Settings" />
+  <img src="screenshots/home.jpg" width="200" alt="Home and Trending" />
+  <img src="screenshots/now-playing.jpg" width="200" alt="Now Playing" />
+  <img src="screenshots/profile.jpg" width="200" alt="Profile and Settings" />
 </p>
 
 <p align="center"><em>Home &amp; Trending &nbsp;·&nbsp; Now Playing &nbsp;·&nbsp; Profile &amp; Settings</em></p>
