@@ -31,32 +31,20 @@ subprojects {
     // afterEvaluate so plugin scripts that set their own compileSdk cannot override us.
     afterEvaluate {
         plugins.withId("com.android.library") {
-            try {
-                val manifestFile = file("src/main/AndroidManifest.xml")
-                if (manifestFile.exists()) {
-                    val content = manifestFile.readText()
-                    if (content.contains("package=")) {
-                        val newContent = content.replace(Regex("""package="[^"]*"""), "")
-                        manifestFile.writeText(newContent)
-                    }
-                }
+            val androidExt = project.extensions.findByName("android") ?: return@withId
+            applyCompileSdk(androidExt, 36)
 
-                val androidExt = project.extensions.findByName("android")
-                if (androidExt != null) {
-                    applyCompileSdk(androidExt, 36)
-
-                    val getNamespace = androidExt.javaClass.getMethod("getNamespace")
-                    val setNamespace = androidExt.javaClass.getMethod("setNamespace", String::class.java)
-                    if (getNamespace.invoke(androidExt) == null) {
-                        val ns = if (project.name.contains("on_audio_query")) {
-                            "com.lucasjosino.on_audio_query"
-                        } else {
-                            "com.soundwave.plugin.${project.name.replace('-', '_')}"
-                        }
-                        setNamespace.invoke(androidExt, ns)
+            runCatching {
+                val namespace = androidExt.javaClass.getMethod("getNamespace").invoke(androidExt)
+                if (namespace == null) {
+                    val ns = if (project.name.contains("on_audio_query")) {
+                        "com.lucasjosino.on_audio_query"
+                    } else {
+                        "com.soundwave.plugin.${project.name.replace('-', '_')}"
                     }
+                    androidExt.javaClass.getMethod("setNamespace", String::class.java).invoke(androidExt, ns)
                 }
-            } catch (_: Exception) {}
+            }
         }
     }
 
