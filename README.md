@@ -2,6 +2,12 @@
 
 A modern, offline-first Flutter music player with 320 kbps online streaming, high-resolution offline cover banner caching, background playback controls, and 5 dynamic OLED & neon themes.
 
+## Live Demo
+
+Try it in the browser: **[getsoundwave.vercel.app](https://getsoundwave.vercel.app)**
+
+> The web build supports online streaming, search and playback. Downloads and local-device music scanning are mobile-only features, since browsers can't write to device storage or read the phone's music library.
+
 ## Key Features
 
 - **Single-Stream Audio Engine (`just_audio` + `audio_service`)**: Guaranteed single-track playback with monotonic generation tracking, audio focus handling, lockscreen / notification media controls, and zero overlapping playback.
