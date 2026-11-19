@@ -37,19 +37,20 @@ jobs:
 
       - name: Build release APK
         continue-on-error: true
-        run: flutter build apk --release
+        run: flutter build apk --release --verbose
 
       - name: Collect APK
         shell: bash
         env:
           TAG: ${{ inputs.version || github.ref_name }}
         run: |
-          set -euo pipefail
-          echo "APK files in build/:"
-          find build -name "*.apk" | head -n 20 || true
-          apk=$(find build -path "*release*" -name "*.apk" | head -n 1)
+          set -uo pipefail
+          echo "--- top level"; ls -la
+          echo "--- apk search"
+          find . -name "*.apk" -not -path "*/.pub-cache/*" 2>/dev/null | head -n 20
+          apk=$(find . -path "*release*" -name "*.apk" -not -path "*/.pub-cache/*" 2>/dev/null | head -n 1)
           if [ -z "$apk" ]; then
-            apk=$(find build -name "*.apk" | head -n 1)
+            apk=$(find . -name "*.apk" -not -path "*/.pub-cache/*" 2>/dev/null | head -n 1)
           fi
           if [ -z "$apk" ]; then
             echo "::error::No APK was produced by the build"
