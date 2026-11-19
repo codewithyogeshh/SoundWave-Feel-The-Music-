@@ -12,7 +12,7 @@ fun applyCompileSdk(ext: Any, sdk: Int) {
     runCatching {
         val current = ext.javaClass.getMethod("getCompileSdk").invoke(ext)
         if (current is org.gradle.api.provider.Property<*>) {
-            current.set(sdk)
+            current.javaClass.getMethod("set", Any::class.java).invoke(current, sdk)
             return
         }
     }
