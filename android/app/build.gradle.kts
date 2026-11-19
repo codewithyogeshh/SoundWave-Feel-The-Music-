@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.soundwave.app.soundwave"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -18,7 +18,7 @@ android {
         // Application ID
         applicationId = "com.soundwave.app.soundwave"
         minSdk = flutter.minSdkVersion.coerceAtLeast(21)
-        targetSdk = flutter.targetSdkVersion
+        targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
