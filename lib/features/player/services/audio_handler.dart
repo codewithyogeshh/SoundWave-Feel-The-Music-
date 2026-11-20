@@ -344,6 +344,17 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
         );
       }
 
+      // just_audio_web caches the loaded audio source tree by message id and
+      // reuses the previous HTMLAudioElement URI. Every setAudioSource call
+      // shares that same cached root, so on web a newly selected song was
+      // silently ignored and the previous track kept playing. Stopping the
+      // player disposes the web platform player (and its cache) so the next
+      // source really loads.
+      if (kIsWeb) {
+        await _player.stop();
+        if (generation != _loadGeneration || _disposed) return;
+      }
+
       await _player.setAudioSource(source);
       if (generation != _loadGeneration || _disposed) return;
 
@@ -508,4 +519,3 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
     await setRepeatMode(nextMode);
   }
 }
-
