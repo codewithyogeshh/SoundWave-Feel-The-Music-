@@ -6,8 +6,11 @@ import 'package:soundwave/app/theme/text_styles.dart';
 import 'package:soundwave/app/theme/theme_model.dart';
 import 'package:soundwave/core/widgets/developer_spotlight_card.dart';
 import 'package:soundwave/core/widgets/glass_card.dart';
+import 'package:soundwave/core/widgets/song_track_tile.dart';
 import 'package:soundwave/features/library/services/library_storage_service.dart';
+import 'package:soundwave/features/player/models/song_model.dart';
 import 'package:soundwave/shared/providers/library_provider.dart';
+import 'package:soundwave/shared/providers/player_provider.dart';
 import 'package:soundwave/shared/providers/theme_provider.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -176,6 +179,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       value: '$totalPlayed',
                       label: 'Tracks Played',
                       gradient: currentTheme.primaryGradient,
+                      onTap: () => _showSongListSheet(
+                        context,
+                        title: 'Recently Played Tracks',
+                        icon: Icons.play_circle_fill_rounded,
+                        songs: libState.recentlyPlayedSongs,
+                        theme: currentTheme,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -185,6 +195,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       value: '${libState.favoriteIds.length}',
                       label: 'Favorites',
                       gradient: currentTheme.accentGradient,
+                      onTap: () => _showSongListSheet(
+                        context,
+                        title: 'Favorite & Liked Songs',
+                        icon: Icons.favorite_rounded,
+                        songs: libState.favoriteSongs,
+                        theme: currentTheme,
+                      ),
                     ),
                   ),
                 ],
@@ -198,6 +215,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       value: '${libState.allSongs.length}',
                       label: 'Offline Songs',
                       gradient: currentTheme.primaryGradient,
+                      onTap: () => _showSongListSheet(
+                        context,
+                        title: 'Downloaded & Offline Songs',
+                        icon: Icons.library_music_rounded,
+                        songs: libState.allSongs,
+                        theme: currentTheme,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -207,6 +231,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       value: '${libState.playlists.length}',
                       label: 'Playlists',
                       gradient: currentTheme.accentGradient,
+                      onTap: () => _showPlaylistsSheet(
+                        context,
+                        libState,
+                        currentTheme,
+                      ),
                     ),
                   ),
                 ],
@@ -454,12 +483,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     required String value,
     required String label,
     required Gradient gradient,
+    VoidCallback? onTap,
   }) {
     return GlassCard(
       borderRadius: 18,
       blur: 0,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
       color: AppColors.glassWhiteMedium,
+      onTap: onTap,
       child: Row(
         children: [
           Container(
@@ -470,7 +501,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ),
             child: Icon(icon, color: Colors.white, size: 20),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -489,8 +520,261 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ],
             ),
           ),
+          if (onTap != null)
+            const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white24, size: 12),
         ],
       ),
+    );
+  }
+
+  void _showSongListSheet(
+    BuildContext context, {
+    required String title,
+    required IconData icon,
+    required List<SongModel> songs,
+    required AppThemeType theme,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Consumer(
+          builder: (context, ref, _) {
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.75,
+              decoration: BoxDecoration(
+                color: theme.secondaryBackground,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                border: Border.all(
+                  color: theme.primaryAccent.withValues(alpha: 0.3),
+                  width: 1,
+                ),
+              ),
+              child: Column(
+                children: [
+                  const SizedBox(height: 12),
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                gradient: theme.primaryGradient,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Icon(icon, color: Colors.white, size: 20),
+                            ),
+                            const SizedBox(width: 12),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(title, style: AppTextStyles.cardTitle.copyWith(fontSize: 16)),
+                                Text(
+                                  '${songs.length} tracks available',
+                                  style: AppTextStyles.subtitle.copyWith(fontSize: 12, color: AppColors.textSecondary),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        if (songs.isNotEmpty)
+                          GestureDetector(
+                            onTap: () {
+                              ref.read(playerProvider.notifier).playTrack(songs.first, queue: songs);
+                              Navigator.of(ctx).pop();
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                              decoration: BoxDecoration(
+                                gradient: theme.primaryGradient,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.play_arrow_rounded, color: Colors.white, size: 16),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Play All',
+                                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Divider(color: Colors.white10),
+                  Expanded(
+                    child: songs.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(icon, size: 48, color: Colors.white24),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'No songs in this list yet',
+                                  style: AppTextStyles.subtitle.copyWith(color: AppColors.textMuted),
+                                ),
+                              ],
+                            ),
+                          )
+                        : ListView.builder(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            itemCount: songs.length,
+                            itemBuilder: (context, index) {
+                              final song = songs[index];
+                              return SongTrackTile(
+                                song: song,
+                                playlist: songs,
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showPlaylistsSheet(
+    BuildContext context,
+    LibraryState libState,
+    AppThemeType theme,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.7,
+          decoration: BoxDecoration(
+            color: theme.secondaryBackground,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            border: Border.all(
+              color: theme.primaryAccent.withValues(alpha: 0.3),
+              width: 1,
+            ),
+          ),
+          child: Column(
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        gradient: theme.accentGradient,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.queue_music_rounded, color: Colors.white, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Your Playlists', style: AppTextStyles.cardTitle.copyWith(fontSize: 16)),
+                        Text(
+                          '${libState.playlists.length} playlists created',
+                          style: AppTextStyles.subtitle.copyWith(fontSize: 12, color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Divider(color: Colors.white10),
+              Expanded(
+                child: libState.playlists.isEmpty
+                    ? Center(
+                        child: Text(
+                          'No playlists created yet',
+                          style: AppTextStyles.subtitle.copyWith(color: AppColors.textMuted),
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        itemCount: libState.playlists.length,
+                        itemBuilder: (context, index) {
+                          final pl = libState.playlists[index];
+                          return GlassCard(
+                            borderRadius: 16,
+                            blur: 0,
+                            padding: const EdgeInsets.all(12),
+                            margin: const EdgeInsets.only(bottom: 8),
+                            color: AppColors.glassWhiteMedium,
+                            onTap: () {
+                              Navigator.of(ctx).pop();
+                              context.push('/playlist/${pl.id}');
+                            },
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 48,
+                                  height: 48,
+                                  decoration: BoxDecoration(
+                                    gradient: theme.primaryGradient,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: const Icon(Icons.music_note_rounded, color: Colors.white, size: 24),
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(pl.name, style: AppTextStyles.songTitle.copyWith(fontSize: 15)),
+                                      Text(
+                                        '${pl.songCount} songs',
+                                        style: AppTextStyles.subtitle.copyWith(fontSize: 12),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const Icon(Icons.chevron_right_rounded, color: Colors.white30),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

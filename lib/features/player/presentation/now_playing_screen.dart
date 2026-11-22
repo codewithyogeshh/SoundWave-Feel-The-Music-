@@ -18,6 +18,7 @@ import 'package:soundwave/features/player/presentation/widgets/lyrics_viewer.dar
 import 'package:soundwave/features/player/services/sleep_timer_service.dart';
 import 'package:soundwave/shared/providers/download_provider.dart';
 import 'package:soundwave/shared/providers/library_provider.dart';
+import 'package:soundwave/shared/providers/online_music_provider.dart';
 import 'package:soundwave/shared/providers/player_provider.dart';
 import 'package:soundwave/shared/providers/theme_provider.dart';
 
@@ -136,14 +137,17 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                     setState(() => _showLyrics = !_showLyrics);
                   },
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.06),
-                      borderRadius: BorderRadius.circular(14),
+                      color: _showLyrics
+                          ? activeTheme.primaryAccent.withValues(alpha: 0.18)
+                          : Colors.white.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(16),
                       border: Border.all(
                         color: _showLyrics
-                            ? activeTheme.primaryAccent.withValues(alpha: 0.6)
-                            : Colors.white.withValues(alpha: 0.12),
+                            ? activeTheme.primaryAccent.withValues(alpha: 0.7)
+                            : Colors.white.withValues(alpha: 0.15),
+                        width: 1.2,
                       ),
                     ),
                     child: Row(
@@ -151,16 +155,17 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                       children: [
                         Icon(
                           _showLyrics ? Icons.music_note_rounded : Icons.mic_external_on_rounded,
-                          size: 13,
-                          color: _showLyrics ? activeTheme.primaryAccent : AppColors.textSecondary,
+                          size: 15,
+                          color: _showLyrics ? activeTheme.primaryAccent : Colors.white,
                         ),
-                        const SizedBox(width: 5),
+                        const SizedBox(width: 6),
                         Text(
-                          _showLyrics ? 'Switch to Artwork' : 'Karaoke Lyrics Mode',
+                          _showLyrics ? '🎵 Show Album Artwork' : '🎤 Synced Karaoke Lyrics',
                           style: TextStyle(
-                            color: _showLyrics ? activeTheme.primaryAccent : AppColors.textSecondary,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
+                            color: _showLyrics ? activeTheme.primaryAccent : Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.3,
                           ),
                         ),
                       ],
@@ -187,6 +192,11 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
 
                 // Action Bar (Share, Favorite, Download, Playlist, Queue)
                 _buildActionsRow(context, song, isFav, activeTheme),
+
+                const SizedBox(height: 16),
+
+                // Similar & Recommended Tracks
+                _buildRecommendedSection(context, song, activeTheme),
 
                 const SizedBox(height: 16),
 
@@ -680,6 +690,238 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildRecommendedSection(
+    BuildContext context,
+    SongModel currentSong,
+    AppThemeType activeTheme,
+  ) {
+    final recommendedAsync = ref.watch(recommendedSongsProvider(currentSong));
+    final libState = ref.watch(libraryProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.auto_awesome_rounded,
+                    size: 16,
+                    color: activeTheme.primaryAccent,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Similar & Recommended',
+                    style: AppTextStyles.cardTitle.copyWith(fontSize: 14),
+                  ),
+                ],
+              ),
+              Text(
+                'Based on Artist',
+                style: AppTextStyles.timeLabel.copyWith(
+                  color: AppColors.textMuted,
+                  fontSize: 10.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 140,
+          child: recommendedAsync.when(
+            loading: () => const Center(
+              child: SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator.adaptive(strokeWidth: 2),
+              ),
+            ),
+            error: (_, _) => _buildLocalFallbackList(currentSong, libState, activeTheme),
+            data: (songs) {
+              final displaySongs = songs.isNotEmpty
+                  ? songs
+                  : libState.allSongs.where((s) => s.id != currentSong.id).take(6).toList();
+
+              if (displaySongs.isEmpty) {
+                return const SizedBox.shrink();
+              }
+
+              return ListView.separated(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                itemCount: displaySongs.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 12),
+                itemBuilder: (context, index) {
+                  final recSong = displaySongs[index];
+                  return GestureDetector(
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      ref.read(playerProvider.notifier).playTrack(
+                        recSong,
+                        queue: [recSong, ...ref.read(playerProvider).queue],
+                      );
+                    },
+                    child: Container(
+                      width: 110,
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.08),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Stack(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: AlbumArtwork(
+                                  size: 94,
+                                  artworkUrl: recSong.artworkPath,
+                                  albumId: recSong.albumId,
+                                  songId: recSong.rawId,
+                                  songTitle: recSong.title,
+                                  songArtist: recSong.artist,
+                                ),
+                              ),
+                              Positioned(
+                                bottom: 4,
+                                right: 4,
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    gradient: activeTheme.primaryGradient,
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: 0.5),
+                                        blurRadius: 4,
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Icon(
+                                    Icons.play_arrow_rounded,
+                                    size: 14,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            recSong.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTextStyles.songTitle.copyWith(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Text(
+                            recSong.artist,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTextStyles.subtitle.copyWith(
+                              fontSize: 9.5,
+                              color: AppColors.textMuted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLocalFallbackList(
+    SongModel currentSong,
+    LibraryState libState,
+    AppThemeType activeTheme,
+  ) {
+    final localSongs = libState.allSongs.where((s) => s.id != currentSong.id).take(6).toList();
+    if (localSongs.isEmpty) return const SizedBox.shrink();
+
+    return ListView.separated(
+      scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
+      itemCount: localSongs.length,
+      separatorBuilder: (_, _) => const SizedBox(width: 12),
+      itemBuilder: (context, index) {
+        final recSong = localSongs[index];
+        return GestureDetector(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            ref.read(playerProvider.notifier).playTrack(
+              recSong,
+              queue: [recSong, ...ref.read(playerProvider).queue],
+            );
+          },
+          child: Container(
+            width: 110,
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.08),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: AlbumArtwork(
+                    size: 94,
+                    artworkUrl: recSong.artworkPath,
+                    albumId: recSong.albumId,
+                    songId: recSong.rawId,
+                    songTitle: recSong.title,
+                    songArtist: recSong.artist,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  recSong.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.songTitle.copyWith(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  recSong.artist,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.subtitle.copyWith(
+                    fontSize: 9.5,
+                    color: AppColors.textMuted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 

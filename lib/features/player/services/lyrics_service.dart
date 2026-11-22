@@ -66,16 +66,83 @@ class LyricsService {
       }
     }
 
-    // Attempt online API fetch if network track
+    // Attempt real online synchronized LRC lyrics via LRCLIB
+    final onlineLrc = await _fetchOnlineLrc(song.title, song.artist);
+    if (onlineLrc != null && onlineLrc.isNotEmpty) {
+      return LyricsData.parseLrc(onlineLrc, songId: song.id);
+    }
+
+    // Attempt online API fetch if network track via JioSaavn
     if (song.sourceType == AudioSourceType.network && song.id.startsWith('online_')) {
-      final onlineLrc = await _fetchOnlineLyrics(song.id.substring(7));
-      if (onlineLrc != null && onlineLrc.isNotEmpty) {
-        return LyricsData.parseLrc(onlineLrc, songId: song.id);
+      final saavnLrc = await _fetchOnlineLyrics(song.id.substring(7));
+      if (saavnLrc != null && saavnLrc.isNotEmpty) {
+        return LyricsData.parseLrc(saavnLrc, songId: song.id);
       }
     }
 
     // Rhythmic procedural synced lyrics so any local or online song has interactive karaoke!
     return _generateDynamicSyncedLyrics(song);
+  }
+
+  static String _cleanTitle(String title) {
+    var t = title
+        .replaceAll(RegExp(r'\(From[^\)]*\)', caseSensitive: false), '')
+        .replaceAll(RegExp(r'\(feat[^\)]*\)', caseSensitive: false), '')
+        .replaceAll(RegExp(r'\[[^\]]*\]'), '')
+        .replaceAll(RegExp(r'\(Original[^\)]*\)', caseSensitive: false), '')
+        .replaceAll(RegExp(r'\(Audio[^\)]*\)', caseSensitive: false), '')
+        .replaceAll(RegExp(r'\(Video[^\)]*\)', caseSensitive: false), '');
+    t = t.split(' - ')[0].split(' (')[0].trim();
+    return t.isNotEmpty ? t : title;
+  }
+
+  static String _cleanArtist(String artist) {
+    return artist.split(',')[0].split('&')[0].trim();
+  }
+
+  /// Fetches real synchronized LRC lyrics from LRCLIB database
+  static Future<String?> _fetchOnlineLrc(String rawTitle, String rawArtist) async {
+    final title = _cleanTitle(rawTitle);
+    final artist = _cleanArtist(rawArtist);
+
+    // 1. Direct match by track_name & artist_name
+    try {
+      final uri = Uri.parse(
+        'https://lrclib.net/api/get?track_name=${Uri.encodeComponent(title)}&artist_name=${Uri.encodeComponent(artist)}',
+      );
+      final res = await http.get(uri, headers: {
+        'User-Agent': 'SoundWaveMusic/1.0',
+      }).timeout(const Duration(seconds: 4));
+
+      if (res.statusCode == 200) {
+        final data = json.decode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+        final synced = data['syncedLyrics']?.toString();
+        if (synced != null && synced.trim().isNotEmpty) {
+          return synced;
+        }
+      }
+    } catch (_) {}
+
+    // 2. Search query by clean title + clean artist
+    try {
+      final q = Uri.encodeComponent('$title $artist'.trim());
+      final uri = Uri.parse('https://lrclib.net/api/search?q=$q');
+      final res = await http.get(uri, headers: {
+        'User-Agent': 'SoundWaveMusic/1.0',
+      }).timeout(const Duration(seconds: 4));
+
+      if (res.statusCode == 200) {
+        final list = json.decode(utf8.decode(res.bodyBytes)) as List<dynamic>;
+        for (final item in list) {
+          final synced = item['syncedLyrics']?.toString();
+          if (synced != null && synced.trim().isNotEmpty) {
+            return synced;
+          }
+        }
+      }
+    } catch (_) {}
+
+    return null;
   }
 
   static Future<String?> _fetchOnlineLyrics(String songId) async {

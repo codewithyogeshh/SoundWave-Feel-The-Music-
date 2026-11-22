@@ -80,7 +80,22 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
   List<SongModel> _currentQueue = [];
   int _currentIndex = 0;
   bool _isShuffle = false;
+  List<int> _shuffledIndices = [];
+  int _shufflePointer = 0;
   AudioServiceRepeatMode _repeatMode = AudioServiceRepeatMode.none;
+
+  void _rebuildShuffleIndices() {
+    if (_currentQueue.isEmpty) {
+      _shuffledIndices = [];
+      _shufflePointer = 0;
+      return;
+    }
+    final indices = List<int>.generate(_currentQueue.length, (i) => i);
+    indices.remove(_currentIndex);
+    indices.shuffle();
+    _shuffledIndices = [_currentIndex, ...indices];
+    _shufflePointer = 0;
+  }
 
   int _loadGeneration = 0;
   bool _isTransitioningTrack = false;
@@ -230,15 +245,18 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
       );
     });
 
-    // Auto next on song completion (guarded against duplicate completion / transitions)
+    // Auto next on song completion & dynamic equalizer attachment
     _processingStateSub =
         _player.processingStateStream.distinct().listen((state) {
       if (_disposed || _isTransitioningTrack) return;
+      if (state == ProcessingState.ready) {
+        _restoreEqualizer();
+      }
       if (state == ProcessingState.completed) {
         if (_repeatMode == AudioServiceRepeatMode.one) {
           seek(Duration.zero);
           play();
-        } else if (hasNext || _repeatMode == AudioServiceRepeatMode.all) {
+        } else if (hasNext || _isShuffle || _repeatMode == AudioServiceRepeatMode.all) {
           skipToNext();
         } else {
           pause();
@@ -283,6 +301,9 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
 
     _currentQueue = List.from(songs);
     _currentIndex = initialIndex.clamp(0, _currentQueue.length - 1);
+    if (_isShuffle) {
+      _rebuildShuffleIndices();
+    }
 
     // Silence any currently playing audio immediately before async resolution/loading
     await _safePausePlayer();
@@ -464,7 +485,11 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
   Future<void> skipToNext() async {
     if (_currentQueue.isEmpty || _disposed) return;
     if (_isShuffle) {
-      final nextIndex = (_currentIndex + 1) % _currentQueue.length;
+      if (_shuffledIndices.length != _currentQueue.length) {
+        _rebuildShuffleIndices();
+      }
+      _shufflePointer = (_shufflePointer + 1) % _shuffledIndices.length;
+      final nextIndex = _shuffledIndices[_shufflePointer];
       await skipToQueueItem(nextIndex);
     } else if (hasNext) {
       await skipToQueueItem(_currentIndex + 1);
@@ -480,7 +505,14 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
       await seek(Duration.zero);
       return;
     }
-    if (hasPrevious) {
+    if (_isShuffle) {
+      if (_shuffledIndices.length != _currentQueue.length) {
+        _rebuildShuffleIndices();
+      }
+      _shufflePointer = (_shufflePointer - 1 + _shuffledIndices.length) % _shuffledIndices.length;
+      final prevIndex = _shuffledIndices[_shufflePointer];
+      await skipToQueueItem(prevIndex);
+    } else if (hasPrevious) {
       await skipToQueueItem(_currentIndex - 1);
     } else if (_repeatMode == AudioServiceRepeatMode.all) {
       await skipToQueueItem(_currentQueue.length - 1);
@@ -515,6 +547,9 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
   @override
   Future<void> setShuffleMode(AudioServiceShuffleMode shuffleMode) async {
     _isShuffle = shuffleMode == AudioServiceShuffleMode.all;
+    if (_isShuffle) {
+      _rebuildShuffleIndices();
+    }
     playbackState.add(playbackState.value.copyWith(shuffleMode: shuffleMode));
   }
 
@@ -559,6 +594,9 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
     _currentQueue = List.from(newQueue);
     if (newIndex != null) {
       _currentIndex = newIndex.clamp(0, _currentQueue.isNotEmpty ? _currentQueue.length - 1 : 0);
+    }
+    if (_isShuffle) {
+      _rebuildShuffleIndices();
     }
     final mediaItems = _currentQueue.map(_toMediaItem).toList();
     queue.add(mediaItems);
@@ -633,22 +671,24 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
       await _loudnessEnhancer.setEnabled(_lastEqEnabled);
       if (!_lastEqEnabled) return;
 
-      // Effective band gains: preset curve + bass-boost emphasis on the low bands,
-      // virtualizer folded into a gentle loudness enhancement.
+      // Effective band gains: preset curve + dynamic bass-boost emphasis on the low bands (60Hz & 230Hz)
       final gains = List<double>.from(_lastEqGains);
-      gains[0] = (gains[0] + _lastBassBoost * 4.0).clamp(-12.0, 12.0);
-      gains[1] = (gains[1] + _lastBassBoost * 2.5).clamp(-12.0, 12.0);
+      gains[0] = (gains[0] + _lastBassBoost * 5.0).clamp(-12.0, 12.0);
+      gains[1] = (gains[1] + _lastBassBoost * 3.0).clamp(-12.0, 12.0);
 
-      final params = await _androidEqualizer.parameters;
+      // Timeout guarded in case parameters completer is waiting on native ExoPlayer audio session
+      final params = await _androidEqualizer.parameters.timeout(
+        const Duration(milliseconds: 400),
+      );
       final count = params.bands.length < gains.length ? params.bands.length : gains.length;
       for (int i = 0; i < count; i++) {
         await params.bands[i].setGain(gains[i]);
       }
 
-      // Virtualizer -> subtle loudness/presence boost.
-      await _loudnessEnhancer.setTargetGain(_lastVirtualizer * 3.0);
+      // Virtualizer -> dynamic presence and loudness boost
+      await _loudnessEnhancer.setTargetGain((_lastVirtualizer * 3.5).clamp(0.0, 5.0));
     } catch (e) {
-      debugPrint('Equalizer apply error: $e');
+      debugPrint('Equalizer apply status: $e');
     }
   }
 }
