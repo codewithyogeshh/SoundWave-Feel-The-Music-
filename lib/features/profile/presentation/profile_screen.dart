@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:soundwave/app/theme/app_colors.dart';
 import 'package:soundwave/app/theme/text_styles.dart';
 import 'package:soundwave/app/theme/theme_model.dart';
@@ -19,7 +20,6 @@ class ProfileScreen extends ConsumerStatefulWidget {
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   String? _customUsername;
   String _audioQuality = 'HD Lossless (320 kbps)';
-  String _eqPreset = 'Vibrant Bass Boost';
   bool _gapless = true;
   bool _normalize = true;
   bool _isInitialized = false;
@@ -31,9 +31,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       final storage = ref.read(storageServiceProvider);
       final profile = storage.getUserProfile();
       _audioQuality = (profile['audioQuality'] as String?) ?? 'HD Lossless (320 kbps)';
-      _eqPreset = (profile['equalizerPreset'] as String?) ??
-          (profile['eqPreset'] as String?) ??
-          'Vibrant Bass Boost';
       _gapless = (profile['gaplessPlayback'] as bool?) ?? true;
       _normalize = (profile['normalizeVolume'] as bool?) ?? true;
       _isInitialized = true;
@@ -333,10 +330,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
               _buildSettingsTile(
                 icon: Icons.equalizer_rounded,
-                title: 'Equalizer Preset',
-                subtitle: _eqPreset,
+                title: 'Audio Equalizer Studio',
+                subtitle: '5-band frequency console, curve & bass boost',
                 iconColor: currentTheme.secondaryAccent,
-                onTap: () => _showEqPicker(context, storage, profile),
+                onTap: () => context.push('/equalizer'),
               ),
               const SizedBox(height: 10),
 
@@ -635,72 +632,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       Navigator.pop(ctx);
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(content: Text('Audio quality updated to: $opt')),
-                      );
-                    },
-                  );
-                }),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  void _showEqPicker(
-    BuildContext context,
-    LibraryStorageService storage,
-    Map<String, dynamic> profile,
-  ) {
-    final presets = [
-      'Flat / Neutral',
-      'Vibrant Bass Boost',
-      'Vocal Clarity',
-      'Treble Booster',
-      'Electronic & Club',
-      'Acoustic Warmth',
-      'Rock & Metal',
-    ];
-    final activeTheme = ref.read(themeProvider);
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: activeTheme.secondaryBackground,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Equalizer Presets', style: AppTextStyles.cardTitle),
-                const SizedBox(height: 12),
-                ...presets.map((preset) {
-                  final isSelected = preset == _eqPreset;
-                  return ListTile(
-                    title: Text(
-                      preset,
-                      style: TextStyle(
-                        color: isSelected ? activeTheme.primaryAccent : Colors.white,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                      ),
-                    ),
-                    trailing: isSelected
-                        ? Icon(Icons.check_circle_rounded, color: activeTheme.primaryAccent)
-                        : null,
-                    onTap: () {
-                      setState(() => _eqPreset = preset);
-                      final updated = Map<String, dynamic>.from(profile);
-                      updated['equalizerPreset'] = preset;
-                      updated['eqPreset'] = preset;
-                      storage.saveUserProfile(updated);
-                      Navigator.pop(ctx);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Equalizer preset applied: $preset')),
                       );
                     },
                   );

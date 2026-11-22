@@ -23,6 +23,7 @@ class PlayerState {
   final int currentIndex;
   final bool isShuffle;
   final AudioServiceRepeatMode repeatMode;
+  final double playbackSpeed;
 
   const PlayerState({
     this.currentSong,
@@ -34,6 +35,7 @@ class PlayerState {
     this.currentIndex = 0,
     this.isShuffle = false,
     this.repeatMode = AudioServiceRepeatMode.none,
+    this.playbackSpeed = 1.0,
   });
 
   PlayerState copyWith({
@@ -46,6 +48,7 @@ class PlayerState {
     int? currentIndex,
     bool? isShuffle,
     AudioServiceRepeatMode? repeatMode,
+    double? playbackSpeed,
   }) {
     return PlayerState(
       currentSong: currentSong ?? this.currentSong,
@@ -57,6 +60,7 @@ class PlayerState {
       currentIndex: currentIndex ?? this.currentIndex,
       isShuffle: isShuffle ?? this.isShuffle,
       repeatMode: repeatMode ?? this.repeatMode,
+      playbackSpeed: playbackSpeed ?? this.playbackSpeed,
     );
   }
 }
@@ -70,6 +74,12 @@ class PlayerNotifier extends Notifier<PlayerState> {
   StreamSubscription? _bufSub;
   int _playRequestId = 0;
   bool _isDisposed = false;
+
+  // While a local queue/track mutation is awaiting confirmation from the audio
+  // engine, stale playback events (e.g. an older queueIndex still in flight from
+  // a previous loadQueue) are ignored so they cannot regress the current track.
+  bool _awaitingTrackConfirmation = false;
+  SongModel? _expectedSongDuringPending;
 
   @override
   PlayerState build() {
@@ -111,13 +121,23 @@ class PlayerNotifier extends Notifier<PlayerState> {
             : queueSong;
       }
 
-      state = state.copyWith(
-        isPlaying: playbackState.playing,
-        isShuffle: playbackState.shuffleMode == AudioServiceShuffleMode.all,
-        repeatMode: playbackState.repeatMode,
-        currentIndex: validIdx,
-        currentSong: syncedSong,
-      );
+      if (_acceptTrackConfirmation(syncedSong)) {
+        state = state.copyWith(
+          isPlaying: playbackState.playing,
+          isShuffle: playbackState.shuffleMode == AudioServiceShuffleMode.all,
+          repeatMode: playbackState.repeatMode,
+          playbackSpeed: playbackState.speed,
+          currentIndex: validIdx,
+          currentSong: syncedSong,
+        );
+      } else {
+        state = state.copyWith(
+          isPlaying: playbackState.playing,
+          isShuffle: playbackState.shuffleMode == AudioServiceShuffleMode.all,
+          repeatMode: playbackState.repeatMode,
+          playbackSpeed: playbackState.speed,
+        );
+      }
     });
 
     _posSub = _handler.player.positionStream.listen((pos) {
@@ -139,6 +159,14 @@ class PlayerNotifier extends Notifier<PlayerState> {
 
     _mediaSub = _handler.mediaItem.listen((item) {
       if (_isDisposed || item == null) return;
+      if (_awaitingTrackConfirmation &&
+          item.id != _expectedSongDuringPending?.id) {
+        return;
+      }
+      if (_awaitingTrackConfirmation) {
+        _awaitingTrackConfirmation = false;
+        _expectedSongDuringPending = null;
+      }
       final idx = state.queue.indexWhere((s) => s.id == item.id);
       if (idx >= 0) {
         final handlerSong = _handler.currentSong;
@@ -165,6 +193,25 @@ class PlayerNotifier extends Notifier<PlayerState> {
         );
       }
     });
+  }
+
+  /// True when [candidate] matches the song we expect the engine to be playing
+  /// after a recent local mutation. While pending, stale media/playback events
+  /// that disagree are ignored so they cannot regress the current track.
+  bool _acceptTrackConfirmation(SongModel? candidate) {
+    if (!_awaitingTrackConfirmation) return true;
+    final expected = _expectedSongDuringPending;
+    if (expected != null && candidate != null && candidate.id == expected.id) {
+      _awaitingTrackConfirmation = false;
+      _expectedSongDuringPending = null;
+      return true;
+    }
+    return false;
+  }
+
+  void _beginTrackConfirmation(SongModel? expected) {
+    _awaitingTrackConfirmation = true;
+    _expectedSongDuringPending = expected;
   }
 
   Future<void> playTrack(SongModel song, {List<SongModel>? queue}) async {
@@ -256,6 +303,7 @@ class PlayerNotifier extends Notifier<PlayerState> {
     }
 
     if (requestId != _playRequestId || _isDisposed) return;
+    _beginTrackConfirmation(trackToPlay);
     await _handler.loadQueue(effectiveQueue, initialIndex: initialIndex);
   }
 
@@ -285,22 +333,28 @@ class PlayerNotifier extends Notifier<PlayerState> {
   Future<void> skipToNext() async {
     final int requestId = ++_playRequestId;
     await _handler.skipToNext();
-    if (requestId == _playRequestId && !_isDisposed && _handler.currentSong != null) {
-      state = state.copyWith(
-        currentSong: _handler.currentSong,
-        currentIndex: _handler.currentIndex,
-      );
+    if (requestId == _playRequestId && !_isDisposed) {
+      _beginTrackConfirmation(_handler.currentSong);
+      if (_handler.currentSong != null) {
+        state = state.copyWith(
+          currentSong: _handler.currentSong,
+          currentIndex: _handler.currentIndex,
+        );
+      }
     }
   }
 
   Future<void> skipToPrevious() async {
     final int requestId = ++_playRequestId;
     await _handler.skipToPrevious();
-    if (requestId == _playRequestId && !_isDisposed && _handler.currentSong != null) {
-      state = state.copyWith(
-        currentSong: _handler.currentSong,
-        currentIndex: _handler.currentIndex,
-      );
+    if (requestId == _playRequestId && !_isDisposed) {
+      _beginTrackConfirmation(_handler.currentSong);
+      if (_handler.currentSong != null) {
+        state = state.copyWith(
+          currentSong: _handler.currentSong,
+          currentIndex: _handler.currentIndex,
+        );
+      }
     }
   }
 
@@ -311,6 +365,83 @@ class PlayerNotifier extends Notifier<PlayerState> {
 
   Future<void> cycleRepeatMode() async {
     await _handler.cycleRepeatMode();
+  }
+
+  Future<void> setPlaybackSpeed(double speed) async {
+    state = state.copyWith(playbackSpeed: speed);
+    await _handler.setPlaybackSpeed(speed);
+  }
+
+  Future<void> reorderQueue(int oldIndex, int newIndex, {bool isAdjusted = false}) async {
+    if (oldIndex < 0 ||
+        oldIndex >= state.queue.length ||
+        newIndex < 0 ||
+        newIndex > state.queue.length) {
+      return;
+    }
+
+    final newQueue = List<SongModel>.from(state.queue);
+    if (!isAdjusted && oldIndex < newIndex) {
+      newIndex -= 1;
+    }
+    final item = newQueue.removeAt(oldIndex);
+    newQueue.insert(newIndex.clamp(0, newQueue.length), item);
+
+    // Track current playing song position
+    int newCurrentIndex = state.currentIndex;
+    if (state.currentSong != null) {
+      final updatedIdx = newQueue.indexWhere((s) => s.id == state.currentSong!.id);
+      if (updatedIdx >= 0) {
+        newCurrentIndex = updatedIdx;
+      }
+    }
+
+    state = state.copyWith(
+      queue: newQueue,
+      currentIndex: newCurrentIndex,
+    );
+
+    _beginTrackConfirmation(state.currentSong);
+    await _handler.updateSongQueue(newQueue, newIndex: newCurrentIndex);
+  }
+
+  Future<void> removeFromQueue(int index) async {
+    if (index < 0 || index >= state.queue.length) return;
+    if (state.queue.length <= 1) return; // Keep at least one song in queue
+
+    final isCurrent = index == state.currentIndex;
+    final newQueue = List<SongModel>.from(state.queue)..removeAt(index);
+
+    int newCurrentIndex = state.currentIndex;
+    if (index < state.currentIndex) {
+      newCurrentIndex = (state.currentIndex - 1).clamp(0, newQueue.length - 1);
+    } else if (newCurrentIndex >= newQueue.length) {
+      newCurrentIndex = newQueue.length - 1;
+    }
+
+    final nextSong = newQueue[newCurrentIndex];
+    state = state.copyWith(
+      queue: newQueue,
+      currentIndex: newCurrentIndex,
+      currentSong: isCurrent ? nextSong : state.currentSong,
+    );
+
+    _beginTrackConfirmation(isCurrent ? nextSong : state.currentSong);
+    await _handler.removeFromQueue(index);
+  }
+
+  Future<void> clearUpcomingQueue() async {
+    if (state.queue.length <= 1) return;
+    final current = state.currentSong;
+    if (current == null) return;
+
+    state = state.copyWith(
+      queue: [current],
+      currentIndex: 0,
+    );
+
+    _beginTrackConfirmation(current);
+    await _handler.clearUpcomingQueue();
   }
 }
 

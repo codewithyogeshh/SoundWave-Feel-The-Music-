@@ -71,7 +71,12 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
 
   // Disable just_audio's built-in interruption listeners so only SoundWaveAudioHandler
   // handles audio focus & becoming-noisy events without duplicate/blind resumes.
-  final AudioPlayer _player = AudioPlayer(handleInterruptions: false);
+  // Platform equalizer effects are attached through the AudioPipeline at construction
+  // (this just_audio version has no setAndroidAudioEffects). They default to disabled
+  // and are enabled/configured by _restoreEqualizer().
+  late final AndroidEqualizer _androidEqualizer;
+  late final AndroidLoudnessEnhancer _loudnessEnhancer;
+  late final AudioPlayer _player;
   List<SongModel> _currentQueue = [];
   int _currentIndex = 0;
   bool _isShuffle = false;
@@ -79,6 +84,12 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
 
   int _loadGeneration = 0;
   bool _isTransitioningTrack = false;
+
+  // Persisted platform equalizer settings (applied to the audio engine).
+  bool _lastEqEnabled = true;
+  List<double> _lastEqGains = const [5.5, 4.0, -1.0, 2.0, 3.5];
+  double _lastBassBoost = 0.65;
+  double _lastVirtualizer = 0.30;
   bool _userPausedDuringLoad = false;
   bool _wasPlayingBeforeInterruption = false;
   double _volumeBeforeDuck = 1.0;
@@ -96,6 +107,14 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
       previous._disposePreviousInstance();
     }
     _activeInstance = this;
+    _androidEqualizer = AndroidEqualizer();
+    _loudnessEnhancer = AndroidLoudnessEnhancer();
+    _player = AudioPlayer(
+      handleInterruptions: false,
+      audioPipeline: AudioPipeline(
+        androidAudioEffects: [_androidEqualizer, _loudnessEnhancer],
+      ),
+    );
     _audioSessionReady = _initAudioSession();
     _listenToPlayerStreams();
   }
@@ -358,6 +377,10 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
       await _player.setAudioSource(source);
       if (generation != _loadGeneration || _disposed) return;
 
+      // Re-apply the persisted platform equalizer to the freshly loaded source.
+      await _restoreEqualizer();
+      if (generation != _loadGeneration || _disposed) return;
+
       _isTransitioningTrack = false;
 
       if (autoPlay && !_userPausedDuringLoad) {
@@ -517,5 +540,115 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
         break;
     }
     await setRepeatMode(nextMode);
+  }
+
+  Future<void> setPlaybackSpeed(double speed) async {
+    if (_disposed) return;
+    final clamped = speed.clamp(0.5, 2.5);
+    await _player.setSpeed(clamped);
+    playbackState.add(playbackState.value.copyWith(speed: clamped));
+  }
+
+  Future<void> setPlaybackVolume(double volume) async {
+    if (_disposed) return;
+    await _player.setVolume(volume.clamp(0.0, 1.0));
+  }
+
+  Future<void> updateSongQueue(List<SongModel> newQueue, {int? newIndex}) async {
+    if (_disposed) return;
+    _currentQueue = List.from(newQueue);
+    if (newIndex != null) {
+      _currentIndex = newIndex.clamp(0, _currentQueue.isNotEmpty ? _currentQueue.length - 1 : 0);
+    }
+    final mediaItems = _currentQueue.map(_toMediaItem).toList();
+    queue.add(mediaItems);
+    playbackState.add(playbackState.value.copyWith(queueIndex: _currentIndex));
+  }
+
+  Future<void> removeFromQueue(int index) async {
+    if (_disposed || index < 0 || index >= _currentQueue.length) return;
+    if (_currentQueue.length <= 1) return;
+
+    final wasPlayingThis = index == _currentIndex;
+    _currentQueue.removeAt(index);
+    if (index < _currentIndex) {
+      _currentIndex--;
+    } else if (_currentIndex >= _currentQueue.length) {
+      _currentIndex = _currentQueue.length - 1;
+    }
+
+    final mediaItems = _currentQueue.map(_toMediaItem).toList();
+    queue.add(mediaItems);
+    playbackState.add(playbackState.value.copyWith(queueIndex: _currentIndex));
+
+    if (wasPlayingThis && _currentQueue.isNotEmpty) {
+      await skipToQueueItem(_currentIndex);
+    }
+  }
+
+  Future<void> clearUpcomingQueue() async {
+    if (_disposed || _currentQueue.isEmpty) return;
+    final current = currentSong;
+    if (current == null) return;
+    _currentQueue = [current];
+    _currentIndex = 0;
+    final mediaItems = _currentQueue.map(_toMediaItem).toList();
+    queue.add(mediaItems);
+    playbackState.add(playbackState.value.copyWith(queueIndex: 0));
+  }
+
+  // ---------------------------------------------------------------------------
+  // Platform Equalizer Engine
+  // ---------------------------------------------------------------------------
+
+  /// Updates the persisted equalizer settings and applies them to the audio
+  /// engine immediately (Android: AndroidEqualizer + BassBoost + Virtualizer).
+  Future<void> updateEqualizer({
+    bool? enabled,
+    List<double>? bandGains,
+    double? bassBoost,
+    double? virtualizer,
+  }) async {
+    if (enabled != null) _lastEqEnabled = enabled;
+    if (bandGains != null && bandGains.length == 5) {
+      _lastEqGains = List<double>.from(bandGains);
+    }
+    if (bassBoost != null) _lastBassBoost = bassBoost;
+    if (virtualizer != null) _lastVirtualizer = virtualizer;
+    await _restoreEqualizer();
+  }
+
+  bool get isEqualizerEnabled => _lastEqEnabled;
+
+  /// Applies the current stored equalizer to the live player. On non-Android
+  /// platforms (or when the platform effect is unsupported) it is a no-op.
+  Future<void> _restoreEqualizer() async {
+    if (_disposed || kIsWeb) return;
+    if (defaultTargetPlatform != TargetPlatform.android) return;
+
+    try {
+      // Effects are part of the player's AudioPipeline and default to disabled.
+      // Enable both so they are heard; if the user turned the EQ off, bypass them.
+      await _androidEqualizer.setEnabled(_lastEqEnabled);
+      await _loudnessEnhancer.setEnabled(_lastEqEnabled);
+      if (!_lastEqEnabled) return;
+
+      // Effective band gains: preset curve + bass-boost emphasis on the low bands,
+      // virtualizer folded into a gentle loudness enhancement.
+      final gains = List<double>.from(_lastEqGains);
+      gains[0] = (gains[0] + _lastBassBoost * 4.0).clamp(-12.0, 12.0);
+      gains[1] = (gains[1] + _lastBassBoost * 2.5).clamp(-12.0, 12.0);
+
+      final params = await _androidEqualizer.parameters;
+      final count = params.bands.length < gains.length ? params.bands.length : gains.length;
+      for (int i = 0; i < count; i++) {
+        await params.bands[i].setGain(gains[i]);
+      }
+
+      // Virtualizer -> subtle loudness/presence boost.
+      await _loudnessEnhancer.setTargetGain(_lastVirtualizer * 3.0);
+    } catch (e) {
+      debugPrint('Equalizer apply error: $e');
+    }
   }
 }

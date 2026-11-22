@@ -17,6 +17,8 @@ import 'package:soundwave/features/library/models/playlist_model.dart';
 import 'package:soundwave/features/library/models/song_filter_state.dart';
 import 'package:soundwave/features/library/services/library_storage_service.dart';
 import 'package:soundwave/features/online/services/download_service.dart';
+import 'package:soundwave/features/player/models/equalizer_model.dart';
+import 'package:soundwave/features/player/models/lyrics_model.dart';
 import 'package:soundwave/features/player/models/song_model.dart';
 import 'package:soundwave/features/player/presentation/now_playing_screen.dart';
 import 'package:soundwave/features/player/services/audio_handler.dart';
@@ -31,11 +33,14 @@ class _RecordingAudioHandler extends SoundWaveAudioHandler {
   final List<String> loadedSongIds = [];
   int pauseCount = 0;
   int playCount = 0;
+  double recordedVolume = 1.0;
+  double recordedSpeed = 1.0;
 
   @override
   Future<void> loadQueue(List<SongModel> songs, {int initialIndex = 0}) async {
     if (songs.isNotEmpty) {
       loadedSongIds.add(songs[initialIndex.clamp(0, songs.length - 1)].id);
+      await super.updateSongQueue(songs, newIndex: initialIndex);
     }
   }
 
@@ -47,6 +52,31 @@ class _RecordingAudioHandler extends SoundWaveAudioHandler {
   @override
   Future<void> pause() async {
     pauseCount++;
+  }
+
+  @override
+  Future<void> setPlaybackVolume(double volume) async {
+    recordedVolume = volume;
+  }
+
+  @override
+  Future<void> setPlaybackSpeed(double speed) async {
+    recordedSpeed = speed;
+  }
+
+  @override
+  Future<void> updateSongQueue(List<SongModel> newQueue, {int? newIndex}) async {
+    await super.updateSongQueue(newQueue, newIndex: newIndex);
+  }
+
+  @override
+  Future<void> removeFromQueue(int index) async {
+    await super.removeFromQueue(index);
+  }
+
+  @override
+  Future<void> clearUpcomingQueue() async {
+    await super.clearUpcomingQueue();
   }
 }
 
@@ -714,12 +744,13 @@ void main() {
       // Open More Options sheet
       await tester.tap(find.byIcon(Icons.more_vert_rounded));
       await tester.pumpAndSettle();
-      expect(find.text('Sleep Timer'), findsOneWidget);
-      expect(find.text('Equalizer Preset'), findsOneWidget);
+      expect(find.text('Sleep Timer & Fade-Out'), findsOneWidget);
+      expect(find.text('Audio Equalizer Studio'), findsOneWidget);
+      expect(find.text('Playback Speed'), findsOneWidget);
       expect(find.text('Track Details & Audio Specs'), findsOneWidget);
 
       // Open Sleep Timer sheet and select 15 min
-      await tester.tap(find.text('Sleep Timer'));
+      await tester.tap(find.text('Sleep Timer & Fade-Out'));
       await tester.pumpAndSettle();
       expect(find.text('15 min'), findsOneWidget);
       await tester.tap(find.text('15 min'));
@@ -730,6 +761,110 @@ void main() {
 
       // Clean up active timer before test completes
       container.read(sleepTimerProvider.notifier).cancelTimer();
+    });
+
+    test('EqualizerModel serialization and preset integrity', () {
+      const eq = EqualizerModel();
+      expect(eq.isEnabled, true);
+      expect(eq.bandGains.length, 5);
+      expect(eq.presetName, 'Vibrant Bass Boost');
+
+      final flatGains = EqualizerModel.standardPresets['Flat / Studio Reference']!;
+      final updated = eq.copyWith(
+        presetName: 'Flat / Studio Reference',
+        bandGains: flatGains,
+        bassBoost: 0.0,
+      );
+      expect(updated.bandGains, [0.0, 0.0, 0.0, 0.0, 0.0]);
+      expect(updated.bassBoost, 0.0);
+
+      final map = updated.toMap();
+      final revived = EqualizerModel.fromMap(map);
+      expect(revived.presetName, 'Flat / Studio Reference');
+      expect(revived.bandGains, [0.0, 0.0, 0.0, 0.0, 0.0]);
+    });
+
+    test('LyricsData parses synchronized LRC timestamps and lines accurately', () {
+      const sampleLrc = '''
+[00:02.50] First line of the melody
+[00:08.00] Second line rolling in
+[00:15.30] Chorus starts here
+''';
+      final lyrics = LyricsData.parseLrc(sampleLrc);
+      expect(lyrics.isSynced, true);
+      expect(lyrics.lines.length, 3);
+      expect(lyrics.lines[0].text, 'First line of the melody');
+      expect(lyrics.lines[0].timestamp, const Duration(seconds: 2, milliseconds: 500));
+      expect(lyrics.lines[1].timestamp, const Duration(seconds: 8));
+
+      // Test active line index detection
+      expect(lyrics.getActiveLineIndex(const Duration(seconds: 1)), 0);
+      expect(lyrics.getActiveLineIndex(const Duration(seconds: 4)), 0);
+      expect(lyrics.getActiveLineIndex(const Duration(seconds: 10)), 1);
+      expect(lyrics.getActiveLineIndex(const Duration(seconds: 20)), 2);
+    });
+
+    test('PlayerNotifier reorders queue and removes tracks correctly', () async {
+      final mockHandler = _RecordingAudioHandler();
+      final container = ProviderContainer(
+        overrides: [
+          audioHandlerProvider.overrideWithValue(mockHandler),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      const songA = SongModel(id: 's_a', title: 'Song A', artist: 'Artist A', duration: Duration(minutes: 3), audioPath: '/a.mp3');
+      const songB = SongModel(id: 's_b', title: 'Song B', artist: 'Artist B', duration: Duration(minutes: 3), audioPath: '/b.mp3');
+      const songC = SongModel(id: 's_c', title: 'Song C', artist: 'Artist C', duration: Duration(minutes: 3), audioPath: '/c.mp3');
+
+      final notifier = container.read(playerProvider.notifier);
+      await notifier.playTrack(songA, queue: [songA, songB, songC]);
+
+      expect(container.read(playerProvider).queue.map((s) => s.id).toList(), ['s_a', 's_b', 's_c']);
+
+      // Reorder: move songC (index 2) to index 0
+      await notifier.reorderQueue(2, 0);
+      expect(container.read(playerProvider).queue.map((s) => s.id).toList(), ['s_c', 's_a', 's_b']);
+      expect(container.read(playerProvider).currentIndex, 1); // Song A is still current
+
+      // Remove songB (index 2)
+      await notifier.removeFromQueue(2);
+      expect(container.read(playerProvider).queue.map((s) => s.id).toList(), ['s_c', 's_a']);
+
+      // Clear upcoming
+      await notifier.clearUpcomingQueue();
+      expect(container.read(playerProvider).queue.length, 1);
+      expect(container.read(playerProvider).queue.first.id, 's_a');
+    });
+
+    test('SleepTimerNotifier supports adding minutes and cancelling cleanly', () {
+      final mockHandler = _RecordingAudioHandler();
+      final container = ProviderContainer(
+        overrides: [
+          audioHandlerProvider.overrideWithValue(mockHandler),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final timerNotifier = container.read(sleepTimerProvider.notifier);
+      timerNotifier.startTimer(10);
+
+      var state = container.read(sleepTimerProvider);
+      expect(state.isActive, true);
+      expect(state.totalMinutes, 10);
+      expect(state.remaining.inMinutes, 10);
+
+      // Add 5 minutes
+      timerNotifier.addMinutes(5);
+      state = container.read(sleepTimerProvider);
+      expect(state.totalMinutes, 15);
+      expect(state.remaining.inMinutes, 15);
+
+      // Cancel
+      timerNotifier.cancelTimer();
+      state = container.read(sleepTimerProvider);
+      expect(state.isActive, false);
+      expect(mockHandler.recordedVolume, 1.0);
     });
   });
 }

@@ -2,6 +2,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:soundwave/app/theme/app_colors.dart';
 import 'package:soundwave/app/theme/text_styles.dart';
 import 'package:soundwave/app/theme/theme_model.dart';
@@ -13,6 +14,7 @@ import 'package:soundwave/core/widgets/glass_card.dart';
 import 'package:soundwave/core/widgets/gradient_button.dart';
 import 'package:soundwave/features/online/widgets/download_options_sheet.dart';
 import 'package:soundwave/features/player/models/song_model.dart';
+import 'package:soundwave/features/player/presentation/widgets/lyrics_viewer.dart';
 import 'package:soundwave/features/player/services/sleep_timer_service.dart';
 import 'package:soundwave/shared/providers/download_provider.dart';
 import 'package:soundwave/shared/providers/library_provider.dart';
@@ -29,6 +31,7 @@ class NowPlayingScreen extends ConsumerStatefulWidget {
 class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
   double? _dragValue;
   bool _isUpNextExpanded = false;
+  bool _showLyrics = false;
 
   @override
   Widget build(BuildContext context) {
@@ -75,38 +78,97 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
             child: Column(
               children: [
                 const SizedBox(height: 6),
-                // Top Bar with live Sleep Timer pill
-                _buildTopBar(context, song, activeTheme, sleepTimer),
+                // Top Bar with live Sleep Timer pill & quick actions
+                _buildTopBar(context, song, activeTheme, sleepTimer, playerState.playbackSpeed),
                 const SizedBox(height: 10),
 
-                // Center Album Art with Calm Ambient Glow
+                // Center Album Art or Interactive Karaoke Lyrics
                 SizedBox(
                   width: screenWidth,
                   height: artSize + 12,
                   child: Center(
-                    child: Hero(
-                      tag: 'album_art_${song.id}',
-                      child: AlbumArtwork(
-                        size: artSize,
-                        borderRadius: 24,
-                        artworkUrl: song.artworkPath,
-                        albumId: song.albumId,
-                        songId: song.rawId,
-                        songTitle: song.title,
-                        songArtist: song.artist,
-                        hasGlow: true,
-                        glowColor: activeTheme.primaryAccent,
-                        overlay: Positioned(
-                          top: 12,
-                          right: 12,
-                          child: _buildHeartOverlayButton(isFav, song, activeTheme),
-                        ),
-                      ),
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 320),
+                      switchInCurve: Curves.easeOutCubic,
+                      switchOutCurve: Curves.easeInCubic,
+                      child: _showLyrics
+                          ? LyricsViewer(
+                              key: const ValueKey('lyrics_mode'),
+                              height: artSize + 12,
+                              onClose: () => setState(() => _showLyrics = false),
+                            )
+                          : GestureDetector(
+                              key: const ValueKey('artwork_mode'),
+                              onTap: () {
+                                HapticFeedback.selectionClick();
+                                setState(() => _showLyrics = true);
+                              },
+                              child: Hero(
+                                tag: 'album_art_${song.id}',
+                                child: AlbumArtwork(
+                                  size: artSize,
+                                  borderRadius: 24,
+                                  artworkUrl: song.artworkPath,
+                                  albumId: song.albumId,
+                                  songId: song.rawId,
+                                  songTitle: song.title,
+                                  songArtist: song.artist,
+                                  hasGlow: true,
+                                  glowColor: activeTheme.primaryAccent,
+                                  overlay: Positioned(
+                                    top: 12,
+                                    right: 12,
+                                    child: _buildHeartOverlayButton(isFav, song, activeTheme),
+                                  ),
+                                ),
+                              ),
+                            ),
                     ),
                   ),
                 ),
 
-                const SizedBox(height: 16),
+                const SizedBox(height: 10),
+
+                // Artwork / Lyrics Switcher Pill
+                GestureDetector(
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    setState(() => _showLyrics = !_showLyrics);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: _showLyrics
+                            ? activeTheme.primaryAccent.withValues(alpha: 0.6)
+                            : Colors.white.withValues(alpha: 0.12),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _showLyrics ? Icons.music_note_rounded : Icons.mic_external_on_rounded,
+                          size: 13,
+                          color: _showLyrics ? activeTheme.primaryAccent : AppColors.textSecondary,
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          _showLyrics ? 'Switch to Artwork' : 'Karaoke Lyrics Mode',
+                          style: TextStyle(
+                            color: _showLyrics ? activeTheme.primaryAccent : AppColors.textSecondary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 12),
 
                 // Song Title, Artist & HD/Offline Badge
                 _buildSongInfo(song, activeTheme, isDownloaded: libState.isDownloaded(song.id)),
@@ -145,6 +207,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     SongModel song,
     AppThemeType activeTheme,
     SleepTimerState sleepTimer,
+    double playbackSpeed,
   ) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -165,48 +228,92 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
               'Now Playing',
               style: AppTextStyles.sectionTitle.copyWith(fontSize: 16),
             ),
-            if (sleepTimer.isActive) ...[
-              const SizedBox(height: 2),
-              GestureDetector(
-                onTap: () => _showSleepTimerSheet(context, activeTheme),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: activeTheme.primaryAccent.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: activeTheme.primaryAccent.withValues(alpha: 0.45),
-                      width: 0.8,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.timer_rounded, size: 11, color: activeTheme.primaryAccent),
-                      const SizedBox(width: 4),
-                      Text(
-                        DurationFormatter.format(sleepTimer.remaining),
-                        style: TextStyle(
-                          color: activeTheme.primaryAccent,
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w700,
+            const SizedBox(height: 2),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (sleepTimer.isActive) ...[
+                  GestureDetector(
+                    onTap: () => _showSleepTimerSheet(context, activeTheme),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: activeTheme.primaryAccent.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: activeTheme.primaryAccent.withValues(alpha: 0.45),
+                          width: 0.8,
                         ),
                       ),
-                    ],
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.timer_rounded, size: 11, color: activeTheme.primaryAccent),
+                          const SizedBox(width: 4),
+                          Text(
+                            DurationFormatter.format(sleepTimer.remaining),
+                            style: TextStyle(
+                              color: activeTheme.primaryAccent,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                ],
+                // Speed indicator chip
+                GestureDetector(
+                  onTap: () => _showPlaybackSpeedSheet(context, activeTheme),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '${playbackSpeed.toStringAsFixed(playbackSpeed % 1 == 0 ? 0 : 2)}x',
+                      style: TextStyle(
+                        color: (playbackSpeed - 1.0).abs() > 0.01
+                            ? activeTheme.secondaryAccent
+                            : AppColors.textMuted,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ],
         ),
-        IconButton(
-          tooltip: 'More options',
-          icon: const Icon(
-            Icons.more_vert_rounded,
-            color: Colors.white,
-            size: 24,
-          ),
-          onPressed: () => _showMoreOptionsSheet(context, song, activeTheme),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              tooltip: _showLyrics ? 'Show Artwork' : 'Karaoke Lyrics',
+              icon: Icon(
+                _showLyrics ? Icons.music_note_rounded : Icons.mic_external_on_rounded,
+                color: _showLyrics ? activeTheme.primaryAccent : Colors.white,
+                size: 22,
+              ),
+              onPressed: () {
+                HapticFeedback.selectionClick();
+                setState(() => _showLyrics = !_showLyrics);
+              },
+            ),
+            IconButton(
+              tooltip: 'More options',
+              icon: const Icon(
+                Icons.more_vert_rounded,
+                color: Colors.white,
+                size: 24,
+              ),
+              onPressed: () => _showMoreOptionsSheet(context, song, activeTheme),
+            ),
+          ],
         ),
       ],
     );
@@ -551,6 +658,14 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
             onPressed: () {
               HapticFeedback.lightImpact();
               showDownloadOptionsSheet(context, song);
+            },
+          ),
+          IconButton(
+            tooltip: 'Equalizer Studio',
+            icon: const Icon(Icons.equalizer_rounded, color: AppColors.textSecondary, size: 24),
+            onPressed: () {
+              HapticFeedback.lightImpact();
+              context.push('/equalizer');
             },
           ),
           IconButton(
@@ -985,75 +1100,169 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
       ),
       builder: (ctx) {
-        final queue = ref.watch(playerProvider).queue;
-        return DraggableScrollableSheet(
-          initialChildSize: 0.6,
-          minChildSize: 0.4,
-          maxChildSize: 0.9,
-          expand: false,
-          builder: (_, controller) {
-            return Column(
-              children: [
-                Container(
-                  width: 44,
-                  height: 4,
-                  margin: const EdgeInsets.symmetric(vertical: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Playback Queue', style: AppTextStyles.sectionTitle),
-                      Text('${queue.length} Tracks', style: AppTextStyles.timeLabel),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: ListView.builder(
-                    controller: controller,
-                    itemCount: queue.length,
-                    itemBuilder: (_, index) {
-                      final item = queue[index];
-                      final isCurrent =
-                          ref.watch(playerProvider).currentSong?.id == item.id;
-                      return ListTile(
-                        leading: AlbumArtwork(
-                          size: 42,
-                          borderRadius: 10,
-                          artworkUrl: item.artworkPath,
-                          albumId: item.albumId,
-                          songId: item.rawId,
-                          songTitle: item.title,
-                          songArtist: item.artist,
-                        ),
-                        title: Text(
-                          item.title,
-                          style: AppTextStyles.songTitle.copyWith(
-                            color: isCurrent ? activeTheme.primaryAccent : Colors.white,
+        return Consumer(
+          builder: (context, ref, _) {
+            final queue = ref.watch(playerProvider).queue;
+            final currentSong = ref.watch(playerProvider).currentSong;
+
+            Duration totalDuration = Duration.zero;
+            for (final s in queue) {
+              totalDuration += s.duration;
+            }
+
+            return DraggableScrollableSheet(
+              initialChildSize: 0.65,
+              minChildSize: 0.45,
+              maxChildSize: 0.92,
+              expand: false,
+              builder: (_, controller) {
+                return Column(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 4,
+                      margin: const EdgeInsets.symmetric(vertical: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Playback Queue', style: AppTextStyles.sectionTitle),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${queue.length} Tracks • ${DurationFormatter.formatLong(totalDuration)}',
+                                style: AppTextStyles.timeLabel.copyWith(color: AppColors.textMuted),
+                              ),
+                            ],
                           ),
-                        ),
-                        subtitle: Text(item.artist, style: AppTextStyles.artistName),
-                        trailing: isCurrent
-                            ? AnimatedEqualizer(
-                                isPlaying: true,
-                                size: 16,
-                                color: activeTheme.primaryAccent,
-                              )
-                            : null,
-                        onTap: () {
-                          ref.read(playerProvider.notifier).playTrack(item, queue: queue);
-                          Navigator.pop(ctx);
-                        },
-                      );
-                    },
-                  ),
-                ),
-              ],
+                          if (queue.length > 1)
+                            TextButton.icon(
+                              onPressed: () {
+                                HapticFeedback.mediumImpact();
+                                ref.read(playerProvider.notifier).clearUpcomingQueue();
+                              },
+                              icon: const Icon(Icons.clear_all_rounded, size: 16, color: AppColors.textMuted),
+                              label: const Text(
+                                'Clear Upcoming',
+                                style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1, color: Colors.white10),
+                    Expanded(
+                      child: queue.isEmpty
+                          ? Center(
+                              child: Text(
+                                'Queue is empty',
+                                style: AppTextStyles.subtitle.copyWith(color: AppColors.textMuted),
+                              ),
+                            )
+                          : Theme(
+                              data: Theme.of(context).copyWith(
+                                canvasColor: Colors.transparent,
+                                shadowColor: Colors.transparent,
+                              ),
+                              child: ReorderableListView.builder(
+                                scrollController: controller,
+                                physics: const BouncingScrollPhysics(),
+                                itemCount: queue.length,
+                                onReorderItem: (oldIndex, newIndex) {
+                                  HapticFeedback.selectionClick();
+                                  ref.read(playerProvider.notifier).reorderQueue(
+                                    oldIndex,
+                                    newIndex,
+                                    isAdjusted: true,
+                                  );
+                                },
+                                itemBuilder: (context, index) {
+                                  final item = queue[index];
+                                  final isCurrent = currentSong?.id == item.id;
+
+                                  return Dismissible(
+                                    key: ValueKey('queue_item_${item.id}_$index'),
+                                    direction: queue.length > 1
+                                        ? DismissDirection.endToStart
+                                        : DismissDirection.none,
+                                    background: Container(
+                                      alignment: Alignment.centerRight,
+                                      padding: const EdgeInsets.only(right: 20),
+                                      color: Colors.redAccent.withValues(alpha: 0.8),
+                                      child: const Icon(Icons.delete_sweep_rounded, color: Colors.white),
+                                    ),
+                                    onDismissed: (_) {
+                                      HapticFeedback.mediumImpact();
+                                      ref.read(playerProvider.notifier).removeFromQueue(index);
+                                    },
+                                    child: ListTile(
+                                      key: ValueKey('list_tile_${item.id}_$index'),
+                                      leading: AlbumArtwork(
+                                        size: 44,
+                                        borderRadius: 10,
+                                        artworkUrl: item.artworkPath,
+                                        albumId: item.albumId,
+                                        songId: item.rawId,
+                                        songTitle: item.title,
+                                        songArtist: item.artist,
+                                      ),
+                                      title: Text(
+                                        item.title,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: AppTextStyles.songTitle.copyWith(
+                                          color: isCurrent ? activeTheme.primaryAccent : Colors.white,
+                                          fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w500,
+                                        ),
+                                      ),
+                                      subtitle: Text(
+                                        item.artist,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: AppTextStyles.artistName,
+                                      ),
+                                      trailing: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          if (isCurrent) ...[
+                                            AnimatedEqualizer(
+                                              isPlaying: true,
+                                              size: 16,
+                                              color: activeTheme.primaryAccent,
+                                            ),
+                                            const SizedBox(width: 10),
+                                          ],
+                                          ReorderableDragStartListener(
+                                            index: index,
+                                            child: const Icon(
+                                              Icons.drag_handle_rounded,
+                                              color: AppColors.textMuted,
+                                              size: 22,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      onTap: () {
+                                        ref.read(playerProvider.notifier).playTrack(item, queue: queue);
+                                        Navigator.pop(ctx);
+                                      },
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                    ),
+                  ],
+                );
+              },
             );
           },
         );
@@ -1123,6 +1332,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
         (profile['eqPreset'] as String?) ??
         'Vibrant Bass Boost';
     final sleepTimer = ref.read(sleepTimerProvider);
+    final currentSpeed = ref.read(playerProvider).playbackSpeed;
 
     showModalBottomSheet(
       context: context,
@@ -1147,22 +1357,32 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                   ),
                 ),
                 ListTile(
-                  leading: Icon(Icons.equalizer_rounded, color: activeTheme.primaryAccent),
-                  title: Text('Equalizer Preset', style: AppTextStyles.songTitle.copyWith(fontSize: 15)),
-                  subtitle: Text(eqPreset, style: AppTextStyles.subtitle.copyWith(fontSize: 12)),
+                  leading: Icon(Icons.tune_rounded, color: activeTheme.primaryAccent),
+                  title: Text('Audio Equalizer Studio', style: AppTextStyles.songTitle.copyWith(fontSize: 15)),
+                  subtitle: Text('Profile: $eqPreset • 5-band EQ, curve & boost', style: AppTextStyles.subtitle.copyWith(fontSize: 12)),
                   trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
                   onTap: () {
                     Navigator.pop(ctx);
-                    _showEqualizerSheet(context, activeTheme, eqPreset);
+                    context.push('/equalizer');
                   },
                 ),
                 ListTile(
-                  leading: Icon(Icons.timer_outlined, color: activeTheme.secondaryAccent),
-                  title: Text('Sleep Timer', style: AppTextStyles.songTitle.copyWith(fontSize: 15)),
+                  leading: Icon(Icons.speed_rounded, color: activeTheme.secondaryAccent),
+                  title: Text('Playback Speed', style: AppTextStyles.songTitle.copyWith(fontSize: 15)),
+                  subtitle: Text('${currentSpeed.toStringAsFixed(currentSpeed % 1 == 0 ? 0 : 2)}x speed', style: AppTextStyles.subtitle.copyWith(fontSize: 12)),
+                  trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showPlaybackSpeedSheet(context, activeTheme);
+                  },
+                ),
+                ListTile(
+                  leading: Icon(Icons.timer_outlined, color: activeTheme.primaryAccent),
+                  title: Text('Sleep Timer & Fade-Out', style: AppTextStyles.songTitle.copyWith(fontSize: 15)),
                   subtitle: Text(
                     sleepTimer.isActive
                         ? 'Pausing in ${DurationFormatter.format(sleepTimer.remaining)}'
-                        : 'Automatically pause playback after a timer',
+                        : 'Gradually duck volume before pausing',
                     style: AppTextStyles.subtitle.copyWith(fontSize: 12),
                   ),
                   trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
@@ -1192,8 +1412,67 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     );
   }
 
+  void _showPlaybackSpeedSheet(BuildContext context, AppThemeType activeTheme) {
+    const speeds = [0.75, 1.0, 1.25, 1.5, 2.0];
+    final currentSpeed = ref.read(playerProvider).playbackSpeed;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: activeTheme.secondaryBackground,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Playback Speed', style: AppTextStyles.cardTitle.copyWith(fontSize: 18)),
+                    Text(
+                      '${currentSpeed.toStringAsFixed(currentSpeed % 1 == 0 ? 0 : 2)}x',
+                      style: TextStyle(color: activeTheme.primaryAccent, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: speeds.map((speed) {
+                    final isSelected = (speed - currentSpeed).abs() < 0.05;
+                    return ChoiceChip(
+                      selected: isSelected,
+                      label: Text('${speed}x'),
+                      selectedColor: activeTheme.primaryAccent,
+                      backgroundColor: Colors.white.withValues(alpha: 0.06),
+                      labelStyle: TextStyle(
+                        color: isSelected ? Colors.white : AppColors.textSecondary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      onSelected: (_) {
+                        HapticFeedback.selectionClick();
+                        ref.read(playerProvider.notifier).setPlaybackSpeed(speed);
+                        Navigator.pop(ctx);
+                      },
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   void _showSleepTimerSheet(BuildContext context, AppThemeType activeTheme) {
-    const presets = [5, 15, 30, 45, 60];
+    const presets = [5, 10, 15, 30, 45, 60, 90];
     showModalBottomSheet(
       context: context,
       backgroundColor: activeTheme.secondaryBackground,
@@ -1212,21 +1491,28 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Sleep Timer', style: AppTextStyles.cardTitle.copyWith(fontSize: 18)),
+                    Text('Smart Sleep Timer', style: AppTextStyles.cardTitle.copyWith(fontSize: 18)),
                     if (timerState.isActive)
-                      Text(
-                        DurationFormatter.format(timerState.remaining),
-                        style: TextStyle(
-                          color: activeTheme.primaryAccent,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: activeTheme.primaryAccent.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          DurationFormatter.format(timerState.remaining),
+                          style: TextStyle(
+                            color: activeTheme.primaryAccent,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                   ],
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Music will gently pause when the countdown ends.',
+                  'Music will gently duck volume in the final 25s before cleanly pausing.',
                   style: AppTextStyles.subtitle.copyWith(fontSize: 12),
                 ),
                 const SizedBox(height: 16),
@@ -1240,7 +1526,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                       selected: isSelected,
                       label: Text('$mins min'),
                       selectedColor: activeTheme.primaryAccent,
-                      backgroundColor: AppColors.glassWhiteMedium,
+                      backgroundColor: Colors.white.withValues(alpha: 0.06),
                       labelStyle: TextStyle(
                         color: isSelected ? Colors.white : AppColors.textSecondary,
                         fontWeight: FontWeight.w700,
@@ -1251,7 +1537,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                         Navigator.pop(ctx);
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('Sleep timer set for $mins minutes'),
+                            content: Text('Sleep timer set for $mins minutes with volume fade-out'),
                           ),
                         );
                       },
@@ -1260,97 +1546,53 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                 ),
                 if (timerState.isActive) ...[
                   const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.redAccent,
-                        side: const BorderSide(color: Colors.redAccent),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: activeTheme.primaryAccent,
+                            side: BorderSide(color: activeTheme.primaryAccent),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          icon: const Icon(Icons.add_rounded, size: 18),
+                          label: const Text('+5 Min'),
+                          onPressed: () {
+                            HapticFeedback.selectionClick();
+                            ref.read(sleepTimerProvider.notifier).addMinutes(5);
+                            Navigator.pop(ctx);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Added 5 minutes to sleep timer')),
+                            );
+                          },
                         ),
                       ),
-                      icon: const Icon(Icons.timer_off_rounded, size: 18),
-                      label: const Text('Cancel Sleep Timer'),
-                      onPressed: () {
-                        ref.read(sleepTimerProvider.notifier).cancelTimer();
-                        Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Sleep timer cancelled')),
-                        );
-                      },
-                    ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.redAccent,
+                            side: const BorderSide(color: Colors.redAccent),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          icon: const Icon(Icons.timer_off_rounded, size: 18),
+                          label: const Text('Cancel Timer'),
+                          onPressed: () {
+                            ref.read(sleepTimerProvider.notifier).cancelTimer();
+                            Navigator.pop(ctx);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Sleep timer cancelled')),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
                   ),
                 ],
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  void _showEqualizerSheet(
-    BuildContext context,
-    AppThemeType activeTheme,
-    String currentPreset,
-  ) {
-    const presets = [
-      'Flat / Neutral',
-      'Vibrant Bass Boost',
-      'Vocal Clarity',
-      'Treble Booster',
-      'Electronic & Club',
-      'Acoustic Warmth',
-      'Rock & Metal',
-    ];
-    final storage = ref.read(storageServiceProvider);
-    final profile = storage.getUserProfile();
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: activeTheme.secondaryBackground,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Equalizer Presets', style: AppTextStyles.cardTitle.copyWith(fontSize: 18)),
-                const SizedBox(height: 10),
-                ...presets.map((preset) {
-                  final isSelected = preset == currentPreset;
-                  return ListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(
-                      preset,
-                      style: TextStyle(
-                        color: isSelected ? activeTheme.primaryAccent : Colors.white,
-                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                      ),
-                    ),
-                    trailing: isSelected
-                        ? Icon(Icons.check_circle_rounded, color: activeTheme.primaryAccent)
-                        : null,
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                      final updated = Map<String, dynamic>.from(profile);
-                      updated['equalizerPreset'] = preset;
-                      updated['eqPreset'] = preset;
-                      storage.saveUserProfile(updated);
-                      Navigator.pop(ctx);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Equalizer preset applied: $preset')),
-                      );
-                    },
-                  );
-                }),
               ],
             ),
           ),
