@@ -5,7 +5,12 @@ import 'package:soundwave/features/library/presentation/playlist_detail_screen.d
 import 'package:soundwave/features/player/presentation/equalizer_screen.dart';
 import 'package:soundwave/features/player/presentation/now_playing_screen.dart';
 
+/// Root navigator key, so app-level flows such as the "Update available"
+/// prompt can open a dialog without a widget context.
+final rootNavigatorKey = GlobalKey<NavigatorState>();
+
 final appRouter = GoRouter(
+  navigatorKey: rootNavigatorKey,
   initialLocation: '/',
   routes: [
     GoRoute(
@@ -61,4 +66,3 @@ final appRouter = GoRouter(
     ),
   ],
 );
-
