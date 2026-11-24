@@ -37,7 +37,12 @@ jobs:
 
       - name: Build release APK
         continue-on-error: true
-        run: flutter build apk --release --verbose
+        shell: bash
+        run: |
+          set -uo pipefail
+          APP_VERSION=$(grep -m1 '^version:' pubspec.yaml | sed 's/^version:[[:space:]]*//' | cut -d'+' -f1 | tr -d ' ')
+          echo "Baking app version $APP_VERSION into the build"
+          flutter build apk --release --verbose --dart-define=SOUNDWAVE_VERSION="$APP_VERSION"
 
       - name: Collect APK
         shell: bash
