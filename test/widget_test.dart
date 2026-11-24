@@ -469,9 +469,9 @@ void main() {
       );
       addTearDown(container.dispose);
 
-      expect(container.read(themeProvider), AppThemeType.cyberNeon);
-      await container.read(themeProvider.notifier).setTheme(AppThemeType.midnightOled);
       expect(container.read(themeProvider), AppThemeType.midnightOled);
+      await container.read(themeProvider.notifier).setTheme(AppThemeType.cyberNeon);
+      expect(container.read(themeProvider), AppThemeType.cyberNeon);
 
       final themeData = AppTheme.fromType(AppThemeType.midnightOled);
       expect(themeData.colorScheme.primary, AppThemeType.midnightOled.primaryAccent);

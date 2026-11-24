@@ -3,7 +3,7 @@ import 'package:soundwave/app/theme/app_colors.dart';
 import 'package:soundwave/app/theme/theme_model.dart';
 
 class AppTheme {
-  static ThemeData get darkTheme => fromType(AppThemeType.cyberNeon);
+  static ThemeData get darkTheme => fromType(AppThemeType.midnightOled);
 
   static ThemeData fromType(AppThemeType theme) {
     return ThemeData(

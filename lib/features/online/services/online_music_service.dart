@@ -117,14 +117,27 @@ class OnlineMusicService {
   static Future<List<SongModel>> getGenreSongs(String genre) async {
     final cleanGenre = genre.trim().toLowerCase();
     String query = '$cleanGenre hits';
-    if (cleanGenre == 'all') query = 'top hindi hits';
-    if (cleanGenre.contains('marathi')) query = 'marathi trending hits';
-    if (cleanGenre.contains('romantic')) query = 'romantic hindi hits';
-    if (cleanGenre.contains('party')) query = 'bollywood party dance hits';
-    if (cleanGenre.contains('lo-fi') || cleanGenre.contains('lofi')) query = 'lofi hindi chill';
-    if (cleanGenre.contains('devotional') || cleanGenre.contains('bhakti')) query = 'devotional bhakti hits';
-    if (cleanGenre.contains('arijit')) query = 'arijit singh hits';
-    if (cleanGenre.contains('punjabi')) query = 'top punjabi hits';
+    if (cleanGenre == 'all' || cleanGenre == 'trending') {
+      query = 'top hindi hits';
+    } else if (cleanGenre == 'top hindi' || cleanGenre == 'hindi') {
+      query = 'top bollywood hindi hits';
+    } else if (cleanGenre.contains('marathi')) {
+      query = 'marathi trending hits';
+    } else if (cleanGenre.contains('romantic')) {
+      query = 'romantic hindi hits';
+    } else if (cleanGenre.contains('party')) {
+      query = 'bollywood party dance hits';
+    } else if (cleanGenre.contains('lo-fi') || cleanGenre.contains('lofi')) {
+      query = 'lofi hindi chill';
+    } else if (cleanGenre.contains('devotional') || cleanGenre.contains('bhakti')) {
+      query = 'devotional bhakti hits';
+    } else if (cleanGenre.contains('study')) {
+      query = 'lofi study focus music';
+    } else if (cleanGenre.contains('arijit')) {
+      query = 'arijit singh hits';
+    } else if (cleanGenre.contains('punjabi')) {
+      query = 'top punjabi hits';
+    }
 
     final songs = await searchSongs(query);
     if (songs.isNotEmpty) return songs;

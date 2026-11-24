@@ -32,17 +32,19 @@ class ExploreScreen extends ConsumerStatefulWidget {
 }
 
 class _ExploreScreenState extends ConsumerState<ExploreScreen> {
-  String _selectedGenre = 'Pop';
+  String _selectedGenre = 'Trending';
 
   final List<Map<String, dynamic>> _genres = [
-    {'name': 'Pop', 'icon': Icons.music_note_rounded},
-    {'name': 'Lo-Fi', 'icon': Icons.album_rounded},
-    {'name': 'Rock', 'icon': Icons.electric_bolt_rounded},
-    {'name': 'Hip Hop', 'icon': Icons.mic_external_on_rounded},
-    {'name': 'Classical', 'icon': Icons.piano_rounded},
-    {'name': 'Electronic', 'icon': Icons.waves_rounded},
-    {'name': 'Jazz', 'icon': Icons.nightlife_rounded},
-    {'name': 'Ambient', 'icon': Icons.auto_awesome_rounded},
+    {'name': 'Trending', 'icon': Icons.whatshot_rounded},
+    {'name': 'Top Hindi', 'icon': Icons.music_note_rounded},
+    {'name': 'Marathi', 'icon': Icons.album_rounded},
+    {'name': 'Romantic', 'icon': Icons.favorite_rounded},
+    {'name': 'Party Dance', 'icon': Icons.celebration_rounded},
+    {'name': 'Lo-Fi', 'icon': Icons.nightlight_round},
+    {'name': 'Punjabi', 'icon': Icons.speaker_group_rounded},
+    {'name': 'Devotional', 'icon': Icons.temple_hindu_rounded},
+    {'name': 'Study Music', 'icon': Icons.menu_book_rounded},
+    {'name': 'Arijit Singh', 'icon': Icons.person_rounded},
   ];
 
   @override
@@ -52,14 +54,20 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
     final allSongs = libState.allSongs;
     final playlists = libState.playlists;
     final onlineTrending = ref.watch(onlineTrendingProvider);
-    final onlineList = onlineTrending.asData?.value ?? const <SongModel>[];
-    final showOnlineSection = onlineTrending.isLoading || onlineList.isNotEmpty;
+    final genreOnlineAsync = ref.watch(onlineGenreSongsProvider(_selectedGenre));
+    final onlineList = genreOnlineAsync.asData?.value ?? onlineTrending.asData?.value ?? const <SongModel>[];
+    final showOnlineSection = genreOnlineAsync.isLoading || onlineTrending.isLoading || onlineList.isNotEmpty;
 
     // Filter by genre if selected
-    final filteredSongs = _selectedGenre == 'All'
+    final filteredSongs = _selectedGenre == 'All' || _selectedGenre == 'Trending'
         ? allSongs
-        : allSongs.where((s) => s.genre == _selectedGenre).toList();
-    final trendingSongs = filteredSongs.isNotEmpty ? filteredSongs : allSongs;
+        : allSongs.where((s) {
+            final q = _selectedGenre.toLowerCase();
+            return s.title.toLowerCase().contains(q) ||
+                s.artist.toLowerCase().contains(q) ||
+                s.genre.toLowerCase().contains(q);
+          }).toList();
+    final trendingSongs = filteredSongs.isNotEmpty ? filteredSongs : (onlineList.isNotEmpty ? onlineList : allSongs);
 
     final madeForYouPlaylists = playlists.length > 3
         ? playlists.sublist(3)
@@ -126,7 +134,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
             // Genre Category Chips Horizontal List
             SliverToBoxAdapter(
               child: SizedBox(
-                height: 82,
+                height: 86,
                 child: ListView.separated(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   scrollDirection: Axis.horizontal,
@@ -144,16 +152,16 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
 
             const SliverToBoxAdapter(child: SizedBox(height: 8)),
 
-            // "Trending Online Hits" Section (hidden when offline/empty)
+            // Selected Genre / Trending Online Section (hidden when offline/empty)
             if (showOnlineSection) ...[
               SliverToBoxAdapter(
                 child: SectionHeader(
-                  title: 'Trending Online Hits',
+                  title: '$_selectedGenre Hits',
                   actionText: 'Search',
                   onActionTap: widget.onSearchTap,
                 ),
               ),
-              onlineTrending.when(
+              genreOnlineAsync.when(
                 data: (onlineSongs) {
                   if (onlineSongs.isEmpty) {
                     return const SliverToBoxAdapter(child: SizedBox.shrink());
@@ -273,8 +281,8 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        width: 66,
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        width: 80,
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(18),
           gradient: isSelected ? activeTheme.primaryGradient : null,
@@ -301,13 +309,16 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
             Icon(
               genre['icon'] as IconData,
               color: isSelected ? selectedFg : Colors.white,
-              size: 24,
+              size: 22,
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             Text(
               genre['name'] as String,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: 10.5,
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                 color: isSelected ? selectedFg : AppColors.textSecondary,
               ),

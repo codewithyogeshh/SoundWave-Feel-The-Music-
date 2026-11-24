@@ -15,13 +15,13 @@ class ThemeNotifier extends Notifier<AppThemeType> {
       try {
         return AppThemeType.values.firstWhere(
           (t) => t.name == saved,
-          orElse: () => AppThemeType.cyberNeon,
+          orElse: () => AppThemeType.midnightOled,
         );
       } catch (_) {
-        return AppThemeType.cyberNeon;
+        return AppThemeType.midnightOled;
       }
     }
-    return AppThemeType.cyberNeon;
+    return AppThemeType.midnightOled;
   }
 
   Future<void> setTheme(AppThemeType theme) async {

@@ -41,14 +41,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   final List<String> _genrePills = [
     'All',
+    'Trending',
     'Top Hindi',
     'Marathi',
     'Romantic',
     'Party Dance',
     'Lo-Fi',
-    'Arijit Singh',
     'Punjabi',
     'Devotional',
+    'Study Music',
+    'Arijit Singh',
   ];
 
   Future<void> _refreshFeeds() async {
@@ -75,8 +77,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ? trendingAsync
         : ref.watch(onlineGenreSongsProvider(_selectedGenre));
 
-    final trendingSongs = trendingAsync.asData?.value ?? const <SongModel>[];
-    final showTrendingSection = trendingAsync.isLoading || trendingSongs.isNotEmpty;
+    final activeFeedAsync = _selectedGenre == 'All' ? trendingAsync : genreSongsAsync;
+    final activeSongs = activeFeedAsync.asData?.value ?? const <SongModel>[];
+    final showTrendingSection = activeFeedAsync.isLoading || activeSongs.isNotEmpty;
     final offlineFallbackHero = downloadedSongs.firstOrNull ?? localSongs.firstOrNull;
 
     return Scaffold(
@@ -102,8 +105,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ),
 
-            // 2. Hero Featured Banner (Online Trending or Offline Ready Fallback)
-            trendingAsync.when(
+            // 2. Hero Featured Banner (Dynamic for Selected Category or Offline Fallback)
+            activeFeedAsync.when(
               data: (songs) {
                 if (songs.isNotEmpty) {
                   return SliverToBoxAdapter(
@@ -112,7 +115,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       songs.first,
                       songs,
                       activeTheme,
-                      badgeText: 'TOP TRENDING • 320 KBPS',
+                      badgeText: _selectedGenre == 'All'
+                          ? 'TOP TRENDING • 320 KBPS'
+                          : '${_selectedGenre.toUpperCase()} • 320 KBPS',
                       isOfflineFallback: false,
                     ),
                   );
@@ -209,7 +214,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
             const SliverToBoxAdapter(child: SizedBox(height: 12)),
 
-            // 4. Horizontal Trending Online Hits Carousel (only rendered when loading or non-empty)
+            // 4. Horizontal Selected Genre / Trending Online Hits Carousel
             if (showTrendingSection) ...[
               SliverToBoxAdapter(
                 child: Padding(
@@ -220,13 +225,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       Row(
                         children: [
                           Icon(
-                            Icons.whatshot_rounded,
+                            _selectedGenre == 'All'
+                                ? Icons.whatshot_rounded
+                                : Icons.auto_awesome_rounded,
                             color: activeTheme.highlightColor,
                             size: 21,
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            'Trending Online Hits',
+                            _selectedGenre == 'All'
+                                ? 'Trending Online Hits'
+                                : '$_selectedGenre Hits',
                             style: AppTextStyles.sectionTitle.copyWith(fontSize: 17),
                           ),
                         ],
@@ -256,7 +265,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
               ),
               const SliverToBoxAdapter(child: SizedBox(height: 10)),
-              trendingAsync.when(
+              activeFeedAsync.when(
                 data: (songs) {
                   if (songs.isEmpty) {
                     return const SliverToBoxAdapter(child: SizedBox.shrink());

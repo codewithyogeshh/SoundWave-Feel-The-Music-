@@ -9,7 +9,17 @@ enum SongCategoryFilter {
   unknownSongs,
   artists,
   albums,
-  genres;
+  genres,
+  // New genre-based categories
+  hindi,
+  marathi,
+  romantic,
+  partyDance,
+  trending,
+  lofi,
+  panjabi,
+  devotional,
+  studyMusic;
 
   String get label {
     switch (this) {
@@ -31,6 +41,24 @@ enum SongCategoryFilter {
         return 'Albums';
       case SongCategoryFilter.genres:
         return 'Genres';
+      case SongCategoryFilter.hindi:
+        return 'Hindi';
+      case SongCategoryFilter.marathi:
+        return 'Marathi';
+      case SongCategoryFilter.romantic:
+        return 'Romantic';
+      case SongCategoryFilter.partyDance:
+        return 'Party/Dance';
+      case SongCategoryFilter.trending:
+        return 'Trending';
+      case SongCategoryFilter.lofi:
+        return 'Lofi';
+      case SongCategoryFilter.panjabi:
+        return 'Panjabi';
+      case SongCategoryFilter.devotional:
+        return 'Devotional';
+      case SongCategoryFilter.studyMusic:
+        return 'Study Music';
     }
   }
 }
@@ -221,6 +249,61 @@ class SongFilterHelper {
       case SongCategoryFilter.artists:
       case SongCategoryFilter.albums:
       case SongCategoryFilter.genres:
+        break;
+      // Genre-based category filters
+      case SongCategoryFilter.hindi:
+        list = list.where((s) {
+          final g = s.genre.toLowerCase();
+          return g.contains('hindi') || g.contains('bollywood');
+        }).toList();
+        break;
+      case SongCategoryFilter.marathi:
+        list = list.where((s) {
+          final g = s.genre.toLowerCase();
+          return g.contains('marathi');
+        }).toList();
+        break;
+      case SongCategoryFilter.romantic:
+        list = list.where((s) {
+          final g = s.genre.toLowerCase();
+          return g.contains('romantic') || g.contains('love');
+        }).toList();
+        break;
+      case SongCategoryFilter.partyDance:
+        list = list.where((s) {
+          final g = s.genre.toLowerCase();
+          return g.contains('party') || g.contains('dance') || g.contains('edm');
+        }).toList();
+        break;
+      case SongCategoryFilter.trending:
+        list = list.where((s) {
+          final g = s.genre.toLowerCase();
+          return g.contains('trending') || g.contains('popular') || g.contains('viral');
+        }).toList();
+        break;
+      case SongCategoryFilter.lofi:
+        list = list.where((s) {
+          final g = s.genre.toLowerCase();
+          return g.contains('lofi') || g.contains('lo-fi') || g.contains('chill');
+        }).toList();
+        break;
+      case SongCategoryFilter.panjabi:
+        list = list.where((s) {
+          final g = s.genre.toLowerCase();
+          return g.contains('panjabi') || g.contains('punjabi');
+        }).toList();
+        break;
+      case SongCategoryFilter.devotional:
+        list = list.where((s) {
+          final g = s.genre.toLowerCase();
+          return g.contains('devotional') || g.contains('bhakti') || g.contains('spiritual');
+        }).toList();
+        break;
+      case SongCategoryFilter.studyMusic:
+        list = list.where((s) {
+          final g = s.genre.toLowerCase();
+          return g.contains('study') || g.contains('focus') || g.contains('ambient');
+        }).toList();
         break;
     }
 
