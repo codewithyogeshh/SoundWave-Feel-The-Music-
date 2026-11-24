@@ -8,17 +8,75 @@ on:
         required: true
         default: "v1.2.0"
   push:
+    branches:
+      - main
+    paths:
+      - "lib/**"
+      - "assets/**"
+      - "pubspec.yaml"
     tags:
       - "v*"
 
 permissions:
   contents: write
 
+concurrency:
+  group: build-apk-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-apk:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Resolve release version
+        id: version
+        shell: bash
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          to_number() { case "${1:-}" in ''|*[!0-9]*) echo 0 ;; *) echo "$1" ;; esac; }
+
+          if [ -n "${INPUT_VERSION:-}" ]; then
+            # Manual run: the tag is given by hand.
+            TAG="$INPUT_VERSION"
+          elif [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            # Pushed tag: use it as is.
+            TAG="$GITHUB_REF_NAME"
+          else
+            # Push to main with code/asset changes: bump the patch of the newest
+            # release, so the app on the phone sees a newer version and offers
+            # the update. No manual workflow run or version edit needed.
+            latest=$(curl -fsSL \
+              -H "Authorization: Bearer $GITHUB_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/releases/latest" \
+              | jq -r '.tag_name // empty' 2>/dev/null) || latest=""
+            if [ -z "$latest" ]; then
+              latest=$(grep -m1 '^version:' pubspec.yaml | sed 's/^version:[[:space:]]*//' | cut -d'+' -f1 | tr -d ' ')
+              latest="v$latest"
+            fi
+            core="${latest#v}"; core="${core#V}"
+            major=$(to_number "$(echo "$core" | cut -d. -f1)")
+            minor=$(to_number "$(echo "$core" | cut -d. -f2)")
+            patch=$(to_number "$(echo "$core" | cut -d. -f3)")
+            TAG="v${major}.${minor}.$((patch + 1))"
+          fi
+
+          VERSION="${TAG#v}"; VERSION="${VERSION#V}"
+          major=$(to_number "$(echo "$VERSION" | cut -d. -f1)")
+          minor=$(to_number "$(echo "$VERSION" | cut -d. -f2)")
+          patch=$(to_number "$(echo "$VERSION" | cut -d. -f3)")
+          # Android versionCode must keep growing; derive it from the version.
+          BUILD_NUMBER=$((major * 10000 + minor * 100 + patch))
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "build_number=$BUILD_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "Will build $TAG as versionName $VERSION, versionCode $BUILD_NUMBER"
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -40,14 +98,16 @@ jobs:
         shell: bash
         run: |
           set -uo pipefail
-          APP_VERSION=$(grep -m1 '^version:' pubspec.yaml | sed 's/^version:[[:space:]]*//' | cut -d'+' -f1 | tr -d ' ')
-          echo "Baking app version $APP_VERSION into the build"
-          flutter build apk --release --verbose --dart-define=SOUNDWAVE_VERSION="$APP_VERSION"
+          echo "Baking app version ${{ steps.version.outputs.version }} into the build"
+          flutter build apk --release --verbose \
+            --build-name="${{ steps.version.outputs.version }}" \
+            --build-number="${{ steps.version.outputs.build_number }}" \
+            --dart-define=SOUNDWAVE_VERSION="${{ steps.version.outputs.version }}"
 
       - name: Collect APK
         shell: bash
         env:
-          TAG: ${{ inputs.version || github.ref_name }}
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
           set -uo pipefail
           echo "--- top level"; ls -la
@@ -69,8 +129,8 @@ jobs:
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.version || github.ref_name }}
-          name: SoundWave ${{ inputs.version || github.ref_name }}
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: SoundWave ${{ steps.version.outputs.tag }}
           body: |
             SoundWave – Feel the Music
 
@@ -82,6 +142,7 @@ jobs:
             Or try the web version: https://getsoundwave.vercel.app
 
             Notes:
+            - This build was published automatically from the latest `main` branch.
             - Release build signed with the debug keystore, so it installs directly on any phone.
             - Downloads and local library scanning work on Android; the web build streams only.
           files: dist/*.apk
