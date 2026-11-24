@@ -2,11 +2,19 @@
 
 A modern, offline-first Flutter music player with 320 kbps online streaming, high-resolution offline cover banner caching, background playback controls, and 5 dynamic OLED & neon themes.
 
+**Latest Android release: v1.3.1 (build 5)** · [Download the APK](https://github.com/codewithyogeshh/SoundWave-Feel-The-Music-/releases/tag/v1.3.1)
+
 ## Live Demo
 
 Try it in the browser: **[getsoundwave.vercel.app](https://getsoundwave.vercel.app)**
 
-**Android app:** [Download the latest APK](https://github.com/codewithyogeshh/SoundWave-Feel-The-Music-/releases/latest) and install it on your phone to get offline downloads and local library scanning.
+## Install on Android
+
+1. Open the [v1.3.1 release page](https://github.com/codewithyogeshh/SoundWave-Feel-The-Music-/releases/tag/v1.3.1) on your phone and tap **`soundwave-v1.3.1.apk`** to download it (about 75 MB). The app needs Android 7.0 (API 24) or newer.
+2. Open the downloaded file. If Android blocks it, tap **Settings** in the prompt and allow **Install unknown apps** for whichever app you downloaded with (Chrome, Files, etc.).
+3. **Coming from an older SoundWave (1.2.x or earlier)?** Uninstall it first. Each release is signed with a fresh debug key, so Android refuses to install this build over an older one and shows "App not installed". Uninstalling also removes saved settings and downloaded tracks.
+4. Tap **Install**, then **Open**.
+5. On first launch, grant the music-library permission so the local library scan can find the songs on your device. Online streaming and search work without it.
 
 > The web build supports online streaming, search and playback. Downloads and local-device music scanning are mobile-only features, since browsers can't write to device storage or read the phone's music library.
 
@@ -27,6 +35,15 @@ Try it in the browser: **[getsoundwave.vercel.app](https://getsoundwave.vercel.a
 - **5 Dynamic Luxury Themes**: Live theme switching across **Cyber Neon**, **Midnight Obsidian (OLED)**, **Royal Amethyst**, **Emerald Aurora**, and **Crimson Eclipse** with full Material 3 surface & accent synchronization.
 - **Now Playing Studio**: Swipeable MiniPlayer (swipe left/right to skip), interactive Up Next queue, working Sleep Timer with live countdown, Equalizer presets, and Track Audio Specs.
 - **Smart Library & Discovery**: Local device audio scanning (`on_audio_query`), multi-criteria filtering & sorting, custom playlists, favorites, and pull-to-refresh online feeds with offline fallback.
+
+## What's New in 1.3.1
+
+- **Equalizer Studio Pro** with presets and per-band tuning.
+- **Synced lyrics** from LRCLIB with karaoke-style highlighting.
+- **Queue reordering**, a smart **Sleep Timer** and **true shuffle** playback.
+- **Recommended tracks carousel** and interactive listening statistics.
+- **Midnight Obsidian** as the default OLED theme, dynamic genre filter chips, and a polished Explore screen layout.
+- Exit confirmation popup so a back press no longer kills playback by accident.
 
 ## Tech Stack
 
@@ -54,7 +71,7 @@ flutter run
 flutter build apk --release
 ```
 
-Release APKs are built automatically by GitHub Actions: pushing a `v*` tag (or running the **Build APK** workflow manually) builds the APK and attaches it to a GitHub release.
+Release APKs are built automatically by GitHub Actions: pushing a `v*` tag (or running the **Build APK** workflow manually) builds the APK and attaches it to a GitHub release. The app version lives in `pubspec.yaml` (`version: 1.3.1+5`).
 
 ## Author
 
