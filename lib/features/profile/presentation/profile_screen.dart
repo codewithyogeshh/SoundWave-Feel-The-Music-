@@ -52,6 +52,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final totalPlayed = storage.getTotalSongsPlayed();
     final batterySaver = ref.watch(batterySaverProvider);
     final pauseOnUnplug = ref.watch(pauseOnHeadphoneUnplugProvider);
+    final pauseOnLowBattery = ref.watch(pauseOnLowBatteryProvider);
+    final stopWhenClosed = ref.watch(stopWhenAppClosedProvider);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -483,6 +485,42 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   );
                 },
               ),
+              const SizedBox(height: 10),
+
+              _buildSwitchTile(
+                icon: Icons.battery_alert_rounded,
+                title: 'Pause on Low Battery',
+                subtitle: 'Stops the music at 15% battery when the phone is not charging',
+                iconColor: currentTheme.highlightColor,
+                value: pauseOnLowBattery,
+                onChanged: (val) {
+                  ref.read(pauseOnLowBatteryProvider.notifier).setEnabled(val);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(val ? 'Music will pause at 15% battery' : 'Music will keep playing on low battery'),
+                      duration: const Duration(seconds: 1),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 10),
+
+              _buildSwitchTile(
+                icon: Icons.layers_clear_rounded,
+                title: 'Stop When App Is Closed',
+                subtitle: 'Ends playback when you swipe SoundWave away from recent apps',
+                iconColor: currentTheme.primaryAccent,
+                value: stopWhenClosed,
+                onChanged: (val) {
+                  ref.read(stopWhenAppClosedProvider.notifier).setEnabled(val);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(val ? 'Swiping the app away will stop the music' : 'Music keeps playing after the app is swiped away'),
+                      duration: const Duration(seconds: 1),
+                    ),
+                  );
+                },
+              ),
 
               const SizedBox(height: 26),
 
@@ -533,7 +571,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               _buildSettingsTile(
                 icon: Icons.info_outline_rounded,
                 title: 'About App & Version',
-                subtitle: 'SoundWave v1.4.1 • Designed by Yogesh Chavan',
+                subtitle: 'SoundWave v1.4.2 • Designed by Yogesh Chavan',
                 iconColor: currentTheme.secondaryAccent,
                 onTap: () => _showAboutDialog(context),
               ),

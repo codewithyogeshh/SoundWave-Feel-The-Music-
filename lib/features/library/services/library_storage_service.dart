@@ -34,6 +34,8 @@ class LibraryStorageService {
   static const String _keyListenedSeconds = 'sw_stats_listened_seconds';
   static const String _keyPauseOnUnplug = 'sw_pause_on_headphone_unplug';
   static const String _keyBatterySaver = 'sw_battery_saver';
+  static const String _keyPauseOnLowBattery = 'sw_pause_on_low_battery';
+  static const String _keyStopWhenSwipedAway = 'sw_stop_on_task_removed';
 
   final SharedPreferences _prefs;
 
@@ -271,6 +273,24 @@ class LibraryStorageService {
 
   Future<void> setBatterySaver(bool value) async {
     await _prefs.setBool(_keyBatterySaver, value);
+  }
+
+  /// Defaults to true: stop at 15% so the last percent is not spent on music.
+  bool getPauseOnLowBattery() {
+    return _prefs.getBool(_keyPauseOnLowBattery) ?? true;
+  }
+
+  Future<void> setPauseOnLowBattery(bool value) async {
+    await _prefs.setBool(_keyPauseOnLowBattery, value);
+  }
+
+  /// Defaults to false: swiping the app away keeps background music playing.
+  bool getStopWhenSwipedAway() {
+    return _prefs.getBool(_keyStopWhenSwipedAway) ?? false;
+  }
+
+  Future<void> setStopWhenSwipedAway(bool value) async {
+    await _prefs.setBool(_keyStopWhenSwipedAway, value);
   }
 
   // --- USER PROFILE ---

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:soundwave/app/app.dart';
 import 'package:soundwave/features/library/services/library_storage_service.dart';
 import 'package:soundwave/features/player/services/audio_handler.dart';
+import 'package:soundwave/features/player/services/battery_guard_service.dart';
 import 'package:soundwave/shared/providers/library_provider.dart';
 import 'package:soundwave/shared/providers/player_provider.dart';
 
@@ -31,6 +32,10 @@ Future<void> main() async {
   audioHandler.pauseOnHeadphoneUnplug =
       storageService.getPauseOnHeadphoneUnplug();
   audioHandler.setBatterySaver(storageService.getBatterySaver());
+  audioHandler.stopWhenTaskRemoved = storageService.getStopWhenSwipedAway();
+
+  // Pause playback before the battery dies when it drops to 15%.
+  BatteryGuard(audioHandler, storageService).start();
 
   runApp(
     ProviderScope(

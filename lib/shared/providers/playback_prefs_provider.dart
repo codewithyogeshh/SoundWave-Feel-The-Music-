@@ -62,3 +62,55 @@ class BatterySaverNotifier extends Notifier<bool> {
     } catch (_) {}
   }
 }
+
+/// Stops playback at 15% battery while the phone is not charging.
+final pauseOnLowBatteryProvider =
+    NotifierProvider<PauseOnLowBatteryNotifier, bool>(
+      PauseOnLowBatteryNotifier.new,
+    );
+
+class PauseOnLowBatteryNotifier extends Notifier<bool> {
+  @override
+  bool build() {
+    try {
+      return ref.read(storageServiceProvider).getPauseOnLowBattery();
+    } catch (_) {
+      return true;
+    }
+  }
+
+  Future<void> setEnabled(bool value) async {
+    state = value;
+    try {
+      await ref.read(storageServiceProvider).setPauseOnLowBattery(value);
+    } catch (_) {}
+  }
+}
+
+/// Stops playback when the app is swiped away from recent apps.
+final stopWhenAppClosedProvider =
+    NotifierProvider<StopWhenAppClosedNotifier, bool>(
+      StopWhenAppClosedNotifier.new,
+    );
+
+class StopWhenAppClosedNotifier extends Notifier<bool> {
+  @override
+  bool build() {
+    bool saved = false;
+    try {
+      saved = ref.read(storageServiceProvider).getStopWhenSwipedAway();
+      ref.read(audioHandlerProvider).stopWhenTaskRemoved = saved;
+    } catch (_) {}
+    return saved;
+  }
+
+  Future<void> setEnabled(bool value) async {
+    state = value;
+    try {
+      ref.read(audioHandlerProvider).stopWhenTaskRemoved = value;
+    } catch (_) {}
+    try {
+      await ref.read(storageServiceProvider).setStopWhenSwipedAway(value);
+    } catch (_) {}
+  }
+}
