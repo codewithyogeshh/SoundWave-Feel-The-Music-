@@ -1,0 +1,26 @@
+name: Apply v1.6.3 patch
+
+on:
+  workflow_dispatch:
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Apply patch and push to main
+        run: |
+          set -euo pipefail
+          cat tmp-apply/v163.a tmp-apply/v163.b tmp-apply/v163.c > /tmp/p.b64
+          base64 -d /tmp/p.b64 | gunzip > /tmp/p.patch
+          git apply --whitespace=nowarn /tmp/p.patch
+          git rm -r --quiet tmp-apply
+          git config user.name "Yogesh Chavan"
+          git config user.email "yogeshbhai0755@gmail.com"
+          git add -A
+          git commit -m "feat(player): auto continue the queue, show time left and remember shuffle"
+          git push origin HEAD:main
