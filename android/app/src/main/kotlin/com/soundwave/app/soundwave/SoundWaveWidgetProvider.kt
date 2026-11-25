@@ -17,7 +17,8 @@ import io.flutter.plugin.common.MethodChannel
  * The widget is drawn with RemoteViews, so the last song stays visible after
  * the app UI is closed. Dart pushes title/artist/play state through the
  * "soundwave/widget" channel, and button taps are sent back to Dart while the
- * playback engine is alive.
+ * playback engine is alive. When the engine is gone, the tap is remembered and
+ * carried out as soon as the app opens (see [consumePendingAction]).
  */
 class SoundWaveWidgetProvider : AppWidgetProvider() {
 
@@ -26,6 +27,7 @@ class SoundWaveWidgetProvider : AppWidgetProvider() {
         private const val KEY_TITLE = "title"
         private const val KEY_ARTIST = "artist"
         private const val KEY_PLAYING = "playing"
+        private const val KEY_PENDING = "pending_action"
 
         const val ACTION_PLAY_PAUSE = "com.soundwave.app.soundwave.WIDGET_PLAY_PAUSE"
         const val ACTION_NEXT = "com.soundwave.app.soundwave.WIDGET_NEXT"
@@ -38,6 +40,11 @@ class SoundWaveWidgetProvider : AppWidgetProvider() {
             bridge = channel
         }
 
+        /** Called when the Flutter engine goes away so taps can fall back. */
+        fun detach(channel: MethodChannel) {
+            if (bridge === channel) bridge = null
+        }
+
         fun update(context: Context, title: String, artist: String, isPlaying: Boolean) {
             context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 .edit()
@@ -46,6 +53,23 @@ class SoundWaveWidgetProvider : AppWidgetProvider() {
                 .putBoolean(KEY_PLAYING, isPlaying)
                 .apply()
             refresh(context, title, artist, isPlaying)
+        }
+
+        /** Returns the tap that arrived while the app was closed, once. */
+        fun consumePendingAction(context: Context): String? {
+            val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            val action = prefs.getString(KEY_PENDING, null)
+            if (action != null) {
+                prefs.edit().remove(KEY_PENDING).apply()
+            }
+            return action
+        }
+
+        private fun rememberPendingAction(context: Context, action: String) {
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .edit()
+                .putString(KEY_PENDING, action)
+                .apply()
         }
 
         private fun refresh(context: Context, title: String, artist: String, isPlaying: Boolean) {
@@ -70,8 +94,7 @@ class SoundWaveWidgetProvider : AppWidgetProvider() {
             views.setTextViewText(R.id.widget_artist, artist)
             views.setImageViewResource(
                 R.id.widget_play_pause,
-                if (isPlaying) android.R.drawable.ic_media_pause
-                else android.R.drawable.ic_media_play,
+                if (isPlaying) R.drawable.ic_widget_pause else R.drawable.ic_widget_play,
             )
 
             views.setOnClickPendingIntent(
@@ -138,14 +161,33 @@ class SoundWaveWidgetProvider : AppWidgetProvider() {
             else -> return
         }
         val channel = bridge
-        if (channel != null) {
-            channel.invokeMethod("onWidgetAction", command)
-        } else {
-            // Playback is not running: open the app so the tap does something.
-            context.startActivity(
-                Intent(context, MainActivity::class.java)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-            )
+        if (channel == null) {
+            openAppWithAction(context, command)
+            return
         }
+        // The Dart side answers only while the playback engine is alive; when it
+        // does not, remember the tap so the app can finish it on launch.
+        channel.invokeMethod(
+            "onWidgetAction",
+            command,
+            object : MethodChannel.Result {
+                override fun success(result: Any?) = Unit
+                override fun error(code: String, message: String?, details: Any?) {
+                    openAppWithAction(context, command)
+                }
+
+                override fun notImplemented() {
+                    openAppWithAction(context, command)
+                }
+            },
+        )
+    }
+
+    private fun openAppWithAction(context: Context, command: String) {
+        rememberPendingAction(context, command)
+        context.startActivity(
+            Intent(context, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
     }
 }
