@@ -1,0 +1,46 @@
+name: Apply SoundWave feature patch
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "tools/soundwave-feature.patch.gz.b64"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Apply patch
+        run: |
+          set -euo pipefail
+          base64 -d tools/soundwave-feature.patch.gz.b64 | gunzip > /tmp/soundwave.patch
+          echo "b9df03dec05a1b8d266f959d9f905ead181fe54286079947e973ae4bc2f6ab74  /tmp/soundwave.patch" | sha256sum -c -
+          git apply --whitespace=nowarn /tmp/soundwave.patch
+          git diff --stat
+
+      - name: Commit and push
+        run: |
+          set -euo pipefail
+          git config user.name "SoundWave Bot"
+          git config user.email "bot@users.noreply.github.com"
+          rm -f tools/soundwave-feature.patch.gz.b64
+          rm -f .github/workflows/apply-soundwave-patch.yml
+          rmdir tools 2>/dev/null || true
+          git add -A
+          git commit -m "feat(player): sleep timer end-of-song, listening stats and playlist shuffle"
+          git push origin HEAD:main
+
+      - name: Start APK build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run build-apk.yml --ref main
