@@ -1,0 +1,16 @@
+name: Trigger build v1.4.3 again
+
+on:
+  workflow_dispatch:
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Start the APK build
+        run: gh workflow run build-apk.yml -f version=v1.4.3 --repo "$GITHUB_REPOSITORY"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
