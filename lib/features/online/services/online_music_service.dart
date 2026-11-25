@@ -13,6 +13,16 @@ class OnlineMusicService {
   static String get _directBaseUrl =>
       kIsWeb ? '${Uri.base.origin}/api/saavn' : _mobileBaseUrl;
   static const String _commonParams = '_format=json&_marker=0&cc=in';
+
+  /// Resolve online tracks to 320 kbps AAC, or downshift to 160 kbps when
+  /// the user picks data saver in Profile. Applied when a track is resolved,
+  /// so already-loaded lists keep the URL they were parsed with.
+  static bool highQualityStreams = true;
+
+  /// CDN suffix for one track, honouring [highQualityStreams] and whether
+  /// JioSaavn publishes a 320 kbps master for it.
+  static String _streamQualityFor(bool has320) =>
+      highQualityStreams && has320 ? '_320.mp4' : '_160.mp4';
   static const Map<String, String> _headers = {
     'User-Agent':
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -214,7 +224,7 @@ class OnlineMusicService {
     final has320 = item['320kbps']?.toString() == 'true';
     String? fullStreamUrl;
     if (enc != null && enc.isNotEmpty) {
-      fullStreamUrl = decryptMediaUrl(enc, quality: has320 ? '_320.mp4' : '_160.mp4');
+      fullStreamUrl = decryptMediaUrl(enc, quality: _streamQualityFor(has320));
     }
 
     // High resolution artwork extraction (500x500)
