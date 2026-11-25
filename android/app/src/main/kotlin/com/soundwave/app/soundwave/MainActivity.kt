@@ -16,6 +16,27 @@ class MainActivity : AudioServiceActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
+        // Used by the home screen widget: Dart pushes the current song and
+        // receives play/pause/skip taps from the widget buttons.
+        val widgetChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "soundwave/widget",
+        )
+        SoundWaveWidgetProvider.attach(widgetChannel)
+        widgetChannel.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "updateWidget" -> {
+                    val title = call.argument<String>("title") ?: "SoundWave"
+                    val artist = call.argument<String>("artist") ?: "Tap to open"
+                    val isPlaying = call.argument<Boolean>("isPlaying") ?: false
+                    SoundWaveWidgetProvider.update(this, title, artist, isPlaying)
+                    result.success(true)
+                }
+
+                else -> result.notImplemented()
+            }
+        }
+
         // Used by the in-app updater: the Dart side downloads the APK and asks
         // Android to install it, so no browser or file manager is involved.
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "soundwave/installer")

@@ -57,6 +57,18 @@
             </intent-filter>
         </receiver>
 
+        <!-- Home screen widget: current song + play/pause/skip controls -->
+        <receiver
+            android:name=".SoundWaveWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/soundwave_widget_info" />
+        </receiver>
+
         <!-- Shares the downloaded update APK with the package installer -->
         <provider
             android:name="androidx.core.content.FileProvider"
