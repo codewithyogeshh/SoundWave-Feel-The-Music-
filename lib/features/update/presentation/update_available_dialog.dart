@@ -3,11 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:soundwave/app/theme/text_styles.dart';
+import 'package:soundwave/features/update/services/apk_installer.dart';
 import 'package:soundwave/features/update/services/update_service.dart';
 import 'package:soundwave/shared/providers/theme_provider.dart';
 
 /// Shown when a newer release than the installed APK exists.
-class UpdateAvailableDialog extends ConsumerWidget {
+///
+/// "Update now" downloads the new APK inside the app and opens the Android
+/// installer, which upgrades SoundWave in place — nothing to uninstall.
+class UpdateAvailableDialog extends ConsumerStatefulWidget {
   const UpdateAvailableDialog({super.key, required this.info});
 
   final UpdateInfo info;
@@ -19,31 +23,81 @@ class UpdateAvailableDialog extends ConsumerWidget {
     );
   }
 
-  Future<void> _openDownload(BuildContext context) async {
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    var opened = false;
+  @override
+  ConsumerState<UpdateAvailableDialog> createState() =>
+      _UpdateAvailableDialogState();
+}
 
-    for (final url in [info.downloadUrl, info.releaseUrl]) {
-      if (opened) break;
-      try {
-        opened = await launchUrl(
-          Uri.parse(url),
-          mode: LaunchMode.externalApplication,
-        );
-      } catch (_) {
-        opened = false;
+class _UpdateAvailableDialogState extends ConsumerState<UpdateAvailableDialog> {
+  bool _downloading = false;
+  double _progress = 0;
+  String? _message;
+
+  Future<void> _startUpdate() async {
+    if (_downloading) return;
+
+    setState(() {
+      _downloading = true;
+      _progress = 0;
+      _message = null;
+    });
+
+    try {
+      final apk = await ApkInstaller.download(
+        widget.info.downloadUrl,
+        widget.info.version,
+        onProgress: (value) {
+          if (mounted) setState(() => _progress = value);
+        },
+      );
+
+      final opened = await ApkInstaller.install(apk);
+      if (!mounted) return;
+
+      if (opened) {
+        Navigator.pop(context);
+        return;
       }
-    }
 
-    if (!opened) {
-      messenger?.showSnackBar(
+      setState(() {
+        _downloading = false;
+        _message =
+            'Allow "Install unknown apps" for SoundWave, then tap Update now '
+            'again.';
+      });
+    } catch (error) {
+      debugPrint('UpdateAvailableDialog: $error');
+      if (!mounted) return;
+      setState(() {
+        _downloading = false;
+        _message =
+            'Could not download the update. Check your internet connection and '
+            'try again.';
+      });
+    }
+  }
+
+  Future<void> _openInBrowser() async {
+    try {
+      final opened = await launchUrl(
+        Uri.parse(widget.info.downloadUrl),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!opened && mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          const SnackBar(content: Text('Could not open the download link.')),
+        );
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
         const SnackBar(content: Text('Could not open the download link.')),
       );
     }
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final activeTheme = ref.watch(themeProvider);
 
     return AlertDialog(
@@ -66,27 +120,61 @@ class UpdateAvailableDialog extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'SoundWave v${info.version} is out. You are on v${info.currentVersion}.',
+            'SoundWave v${widget.info.version} is out. You are on '
+            'v${widget.info.currentVersion}.',
             style: AppTextStyles.subtitle.copyWith(height: 1.4),
           ),
           const SizedBox(height: 12),
-          Text(
-            'Download the new APK and open it to install. If Android says '
-            '"App not installed", uninstall the current version first, then '
-            'install the new one.',
-            style: AppTextStyles.subtitle.copyWith(fontSize: 12, height: 1.45),
-          ),
+          if (_downloading) ...[
+            LinearProgressIndicator(
+              value: _progress > 0 ? _progress : null,
+              color: activeTheme.primaryAccent,
+              backgroundColor: Colors.white24,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Downloading update… ${(_progress * 100).round()}%',
+              style: AppTextStyles.subtitle.copyWith(fontSize: 12),
+            ),
+          ] else ...[
+            Text(
+              'Tap Update now and SoundWave installs the new version by itself '
+              '— your songs, playlists and settings stay exactly as they are.',
+              style: AppTextStyles.subtitle.copyWith(
+                fontSize: 12,
+                height: 1.45,
+              ),
+            ),
+            if (_message != null) ...[
+              const SizedBox(height: 10),
+              Text(
+                _message!,
+                style: AppTextStyles.subtitle.copyWith(
+                  fontSize: 12,
+                  height: 1.45,
+                  color: activeTheme.primaryAccent,
+                ),
+              ),
+            ],
+          ],
         ],
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.pop(context),
+          onPressed: _downloading ? null : _openInBrowser,
+          child: const Text(
+            'Open in browser',
+            style: TextStyle(color: Colors.white70),
+          ),
+        ),
+        TextButton(
+          onPressed: _downloading ? null : () => Navigator.pop(context),
           child: const Text('Later', style: TextStyle(color: Colors.white)),
         ),
         TextButton(
-          onPressed: () => _openDownload(context),
+          onPressed: _downloading ? null : _startUpdate,
           child: Text(
-            'Download APK',
+            'Update now',
             style: TextStyle(
               color: activeTheme.primaryAccent,
               fontWeight: FontWeight.bold,
