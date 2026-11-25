@@ -374,6 +374,8 @@ class PlayerNotifier extends Notifier<PlayerState> {
     for (final candidate in similar) {
       if (additions.length >= 12) break;
       if (existing.any((s) => s.id == candidate.id)) continue;
+      if (existing.any((s) => QueueVariety.sameFamily(s, candidate))) continue;
+      if (additions.any((s) => QueueVariety.sameFamily(s, candidate))) continue;
       final currentId = state.currentSong?.id;
       if (currentId != null && candidate.id == currentId) continue;
       additions.add(candidate);
@@ -390,6 +392,28 @@ class PlayerNotifier extends Notifier<PlayerState> {
     state = state.copyWith(queue: newQueue, currentIndex: safeIndex);
     _beginTrackConfirmation(currentSong);
     await _handler.updateSongQueue(newQueue, newIndex: safeIndex);
+  }
+
+  /// Cleans a queue that was built before the variety filter existed (or by a
+  /// list that was full of copies of one song) and tops it up with same-vibe
+  /// songs. Safe to call whenever the player screen opens: it does nothing
+  /// when the queue is already varied.
+  Future<void> refreshQueueVariety() async {
+    final current = state.currentSong;
+    if (current == null || state.queue.isEmpty) return;
+
+    final trimmed = QueueVariety.trimRepeats(
+      state.queue,
+      currentId: current.id,
+    );
+    if (trimmed.length >= state.queue.length) return;
+
+    final newIndex = trimmed.indexWhere((s) => s.id == current.id);
+    final safeIndex = newIndex < 0 ? 0 : newIndex;
+    state = state.copyWith(queue: trimmed, currentIndex: safeIndex);
+    _beginTrackConfirmation(current);
+    await _handler.updateSongQueue(trimmed, newIndex: safeIndex);
+    await _topUpQueueWithSimilar(current, _playRequestId);
   }
 
   Future<void> pause() async {

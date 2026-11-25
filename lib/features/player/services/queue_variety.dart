@@ -85,26 +85,54 @@ class QueueVariety {
   }
 
   /// True when both songs are really the same track (original, remix, cover…).
+  /// Titles are compared word by word so "Dil Mera Tod Diya" and "Dil Mera
+  /// Tod Ke" are treated as one song instead of two.
   static bool sameFamily(SongModel a, SongModel b) {
     final left = familyKey(a.title);
     final right = familyKey(b.title);
     if (left.isEmpty || right.isEmpty) return false;
     if (left == right) return true;
+
     final shorter = left.length <= right.length ? left : right;
     final longer = left.length <= right.length ? right : left;
-    return shorter.length >= 14 && longer.contains(shorter);
+    if (shorter.length >= 14 && longer.contains(shorter)) return true;
+
+    final leftWords = left.split(' ').where((w) => w.isNotEmpty).toSet();
+    final rightWords = right.split(' ').where((w) => w.isNotEmpty).toSet();
+    // Short titles ("Tum Hi Ho") must match exactly; fuzzy matching is only
+    // safe once there are enough words to be meaningful.
+    if (leftWords.length < 3 || rightWords.length < 3) return false;
+
+    final common = leftWords.intersection(rightWords).length;
+    final union = leftWords.union(rightWords).length;
+    if (common < 3) return false;
+    return common / union >= 0.6;
   }
 
-  /// Drops extra versions of songs that are already queued, keeping at most
+  /// Drops extra versions of songs that are already queued, keeping only
   /// [maxPerFamily] of each. The song that is playing right now is always kept.
   static List<SongModel> trimRepeats(
     List<SongModel> songs, {
     String? currentId,
-    int maxPerFamily = 2,
+    int maxPerFamily = 1,
   }) {
     final kept = <SongModel>[];
+    SongModel? current;
+    if (currentId != null) {
+      for (final song in songs) {
+        if (song.id == currentId) {
+          current = song;
+          break;
+        }
+      }
+    }
+
     for (final song in songs) {
       final isCurrent = currentId != null && song.id == currentId;
+      // Only the version that is playing right now is kept for the current
+      // song; its other versions (jhankar, lo-fi, covers) are dropped.
+      if (!isCurrent && current != null && sameFamily(current, song)) continue;
+
       final inFamily = kept.where((k) => sameFamily(k, song)).length;
       if (!isCurrent && inFamily >= maxPerFamily) continue;
       kept.add(song);

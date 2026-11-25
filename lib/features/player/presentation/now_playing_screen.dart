@@ -37,6 +37,17 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
   bool _isUpNextExpanded = false;
   bool _showLyrics = false;
 
+  @override
+  void initState() {
+    super.initState();
+    // Queues restored from an older build, or built from a list that was full
+    // of copies of one song, are cleaned up as soon as the player opens.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(playerProvider.notifier).refreshQueueVariety();
+    });
+  }
+
   /// Staggered entrance helper: each section eases in slightly after the one
   /// above it, which is what gives the screen its premium, layered feel.
   Widget _stagger(int index, Widget child) => Reveal(index: index, child: child);
