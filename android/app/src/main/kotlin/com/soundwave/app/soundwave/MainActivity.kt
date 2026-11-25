@@ -32,7 +32,18 @@ class MainActivity : AudioServiceActivity() {
                     val title = call.argument<String>("title") ?: "SoundWave"
                     val artist = call.argument<String>("artist") ?: "Tap to open"
                     val isPlaying = call.argument<Boolean>("isPlaying") ?: false
-                    SoundWaveWidgetProvider.update(this, title, artist, isPlaying)
+                    val artwork = call.argument<String>("artwork")
+                    val positionMs = call.argument<Number>("positionMs")?.toLong() ?: 0L
+                    val durationMs = call.argument<Number>("durationMs")?.toLong() ?: 0L
+                    SoundWaveWidgetProvider.update(
+                        this,
+                        title,
+                        artist,
+                        isPlaying,
+                        artwork,
+                        positionMs,
+                        durationMs,
+                    )
                     result.success(true)
                 }
 
