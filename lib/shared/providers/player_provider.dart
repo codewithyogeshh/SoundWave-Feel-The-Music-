@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -75,6 +76,14 @@ class PlayerNotifier extends Notifier<PlayerState> {
   int _playRequestId = 0;
   bool _isDisposed = false;
 
+  // Last-session persistence (resume the song, queue and position on launch).
+  bool _userStartedPlayback = false;
+  Timer? _sessionSaveTimer;
+  String? _lastSavedSignature;
+
+  /// Where playback should start when the restored song is played again.
+  Duration? _resumePosition;
+
   // While a local queue/track mutation is awaiting confirmation from the audio
   // engine, stale playback events (e.g. an older queueIndex still in flight from
   // a previous loadQueue) are ignored so they cannot regress the current track.
@@ -87,6 +96,8 @@ class PlayerNotifier extends Notifier<PlayerState> {
     ref.onDispose(() {
       _isDisposed = true;
       ++_playRequestId;
+      _sessionSaveTimer?.cancel();
+      unawaited(_saveSession(force: true));
       _playbackSub?.cancel();
       _mediaSub?.cancel();
       _posSub?.cancel();
@@ -98,11 +109,19 @@ class PlayerNotifier extends Notifier<PlayerState> {
 
     final initialSongs = SampleMusicData.initialSongs;
     final initialSong = initialSongs.isNotEmpty ? initialSongs.first : null;
+    final savedSpeed = _savedPlaybackSpeed();
+    if ((savedSpeed - 1.0).abs() > 0.001) {
+      unawaited(_handler.setPlaybackSpeed(savedSpeed));
+    }
+
+    // Restore after build() returns so the notifier state exists.
+    unawaited(Future.microtask(_restoreLastSession));
 
     return PlayerState(
       currentSong: initialSong,
       queue: initialSongs,
       duration: initialSong?.duration ?? Duration.zero,
+      playbackSpeed: savedSpeed,
     );
   }
 
@@ -110,8 +129,9 @@ class PlayerNotifier extends Notifier<PlayerState> {
     _playbackSub = _handler.playbackState.listen((playbackState) {
       if (_isDisposed) return;
       final qIdx = playbackState.queueIndex;
-      final validIdx =
-          (qIdx != null && qIdx >= 0 && qIdx < state.queue.length) ? qIdx : null;
+      final validIdx = (qIdx != null && qIdx >= 0 && qIdx < state.queue.length)
+          ? qIdx
+          : null;
       final handlerSong = _handler.currentSong;
       SongModel? syncedSong;
       if (validIdx != null) {
@@ -119,6 +139,10 @@ class PlayerNotifier extends Notifier<PlayerState> {
         syncedSong = (handlerSong != null && handlerSong.id == queueSong.id)
             ? handlerSong
             : queueSong;
+      }
+
+      if (!playbackState.playing) {
+        _scheduleSessionSave(immediate: true);
       }
 
       if (_acceptTrackConfirmation(syncedSong)) {
@@ -143,6 +167,7 @@ class PlayerNotifier extends Notifier<PlayerState> {
     _posSub = _handler.player.positionStream.listen((pos) {
       if (_isDisposed) return;
       state = state.copyWith(position: pos);
+      _scheduleSessionSave();
     });
 
     _durSub = _handler.player.durationStream.listen((dur) {
@@ -183,7 +208,8 @@ class PlayerNotifier extends Notifier<PlayerState> {
       } else if (state.queue.isNotEmpty &&
           _handler.currentIndex >= 0 &&
           _handler.currentIndex < state.queue.length) {
-        final fallback = _handler.currentSong ?? state.queue[_handler.currentIndex];
+        final fallback =
+            _handler.currentSong ?? state.queue[_handler.currentIndex];
         state = state.copyWith(
           currentSong: fallback,
           currentIndex: _handler.currentIndex,
@@ -215,6 +241,8 @@ class PlayerNotifier extends Notifier<PlayerState> {
   }
 
   Future<void> playTrack(SongModel song, {List<SongModel>? queue}) async {
+    _userStartedPlayback = true;
+    _resumePosition = null;
     final int requestId = ++_playRequestId;
 
     // Prefer downloaded offline song + banner when already saved locally
@@ -227,8 +255,9 @@ class PlayerNotifier extends Notifier<PlayerState> {
 
     SongModel preferOfflineCopy(SongModel candidate) {
       if (kIsWeb || downloadedSongs.isEmpty) return candidate;
-      final offline =
-          downloadedSongs.where((s) => s.id == candidate.id).firstOrNull;
+      final offline = downloadedSongs
+          .where((s) => s.id == candidate.id)
+          .firstOrNull;
       if (offline != null &&
           offline.audioPath.isNotEmpty &&
           File(offline.audioPath).existsSync()) {
@@ -247,7 +276,9 @@ class PlayerNotifier extends Notifier<PlayerState> {
     var effectiveQueue = rawQueue
         .map((s) => s.id == trackToPlay.id ? trackToPlay : preferOfflineCopy(s))
         .toList();
-    final targetIndex = effectiveQueue.indexWhere((s) => s.id == trackToPlay.id);
+    final targetIndex = effectiveQueue.indexWhere(
+      (s) => s.id == trackToPlay.id,
+    );
     final initialIndex = targetIndex >= 0 ? targetIndex : 0;
 
     // Optimistic UI update so MiniPlayer / highlights respond immediately without overlap
@@ -261,7 +292,8 @@ class PlayerNotifier extends Notifier<PlayerState> {
     );
 
     // If it's an online track needing URL resolution, silence previous playback first
-    final needsOnlineResolve = trackToPlay.sourceType == AudioSourceType.network &&
+    final needsOnlineResolve =
+        trackToPlay.sourceType == AudioSourceType.network &&
         trackToPlay.id.startsWith('online_') &&
         (trackToPlay.audioPath.isEmpty ||
             trackToPlay.audioPath.contains('jiotunepreview.jio.com'));
@@ -270,7 +302,9 @@ class PlayerNotifier extends Notifier<PlayerState> {
       await _handler.pause();
       if (requestId != _playRequestId || _isDisposed) return;
 
-      final resolvedTrack = await OnlineMusicService.resolveFullTrack(trackToPlay);
+      final resolvedTrack = await OnlineMusicService.resolveFullTrack(
+        trackToPlay,
+      );
       if (requestId != _playRequestId || _isDisposed) return;
 
       if (resolvedTrack != null) {
@@ -313,11 +347,17 @@ class PlayerNotifier extends Notifier<PlayerState> {
   }
 
   Future<void> togglePlayPause() async {
+    _userStartedPlayback = true;
     if (state.isPlaying) {
       await pause();
     } else {
+      final resumeAt = _resumePosition;
+      _resumePosition = null;
       if (_handler.currentSong == null && state.currentSong != null) {
         await playTrack(state.currentSong!, queue: state.queue);
+        if (resumeAt != null && resumeAt > Duration.zero) {
+          await seek(resumeAt);
+        }
       } else {
         ++_playRequestId;
         await _handler.play();
@@ -370,9 +410,102 @@ class PlayerNotifier extends Notifier<PlayerState> {
   Future<void> setPlaybackSpeed(double speed) async {
     state = state.copyWith(playbackSpeed: speed);
     await _handler.setPlaybackSpeed(speed);
+    try {
+      await ref.read(storageServiceProvider).savePlaybackSpeed(speed);
+    } catch (_) {
+      // Allows isolated tests without a storage override.
+    }
   }
 
-  Future<void> reorderQueue(int oldIndex, int newIndex, {bool isAdjusted = false}) async {
+  // ---------------------------------------------------------------------------
+  // Last session (resume last song + position, persisted playback speed)
+  // ---------------------------------------------------------------------------
+
+  double _savedPlaybackSpeed() {
+    try {
+      return ref.read(storageServiceProvider).getPlaybackSpeed();
+    } catch (_) {
+      return 1.0;
+    }
+  }
+
+  /// Restores the queue, track and position the app last saved, without
+  /// starting playback. Skipped as soon as the user taps something first.
+  Future<void> _restoreLastSession() async {
+    if (_isDisposed) return;
+    try {
+      final storage = ref.read(storageServiceProvider);
+      final session = storage.getPlaybackSession();
+      if (session == null || session.queue.isEmpty) return;
+      final index = session.index.clamp(0, session.queue.length - 1);
+      final song = session.queue[index];
+
+      // Skip dead local files so a deleted song never blocks startup.
+      if (song.sourceType == AudioSourceType.file &&
+          !kIsWeb &&
+          !File(song.audioPath).existsSync()) {
+        return;
+      }
+      if (_isDisposed || _userStartedPlayback) return;
+
+      state = state.copyWith(
+        queue: session.queue,
+        currentIndex: index,
+        currentSong: song,
+        position: session.position,
+        duration: song.duration,
+        isPlaying: false,
+      );
+
+      // Nothing is preloaded, so playback stays silent until the user taps
+      // play; that tap then continues from the saved position.
+      _resumePosition = session.position;
+    } catch (_) {
+      // Fresh installs, tests without storage, or unreadable sessions.
+    }
+  }
+
+  void _scheduleSessionSave({bool immediate = false}) {
+    if (_isDisposed || state.queue.isEmpty) return;
+    if (immediate) {
+      _sessionSaveTimer?.cancel();
+      _sessionSaveTimer = null;
+      unawaited(_saveSession());
+      return;
+    }
+    if (_sessionSaveTimer?.isActive ?? false) return;
+    _sessionSaveTimer = Timer(const Duration(seconds: 5), () {
+      _sessionSaveTimer = null;
+      unawaited(_saveSession());
+    });
+  }
+
+  Future<void> _saveSession({bool force = false}) async {
+    try {
+      final current = state.currentSong;
+      if (current == null || state.queue.isEmpty) return;
+      final position = state.position;
+      final signature =
+          '${current.id}|${state.currentIndex}|${position.inSeconds ~/ 5}';
+      if (!force && signature == _lastSavedSignature) return;
+      _lastSavedSignature = signature;
+      await ref
+          .read(storageServiceProvider)
+          .savePlaybackSession(
+            queue: state.queue,
+            index: state.currentIndex,
+            position: position,
+          );
+    } catch (_) {
+      // Storage is not available yet (or in isolated tests).
+    }
+  }
+
+  Future<void> reorderQueue(
+    int oldIndex,
+    int newIndex, {
+    bool isAdjusted = false,
+  }) async {
     if (oldIndex < 0 ||
         oldIndex >= state.queue.length ||
         newIndex < 0 ||
@@ -390,16 +523,15 @@ class PlayerNotifier extends Notifier<PlayerState> {
     // Track current playing song position
     int newCurrentIndex = state.currentIndex;
     if (state.currentSong != null) {
-      final updatedIdx = newQueue.indexWhere((s) => s.id == state.currentSong!.id);
+      final updatedIdx = newQueue.indexWhere(
+        (s) => s.id == state.currentSong!.id,
+      );
       if (updatedIdx >= 0) {
         newCurrentIndex = updatedIdx;
       }
     }
 
-    state = state.copyWith(
-      queue: newQueue,
-      currentIndex: newCurrentIndex,
-    );
+    state = state.copyWith(queue: newQueue, currentIndex: newCurrentIndex);
 
     _beginTrackConfirmation(state.currentSong);
     await _handler.updateSongQueue(newQueue, newIndex: newCurrentIndex);
@@ -435,15 +567,13 @@ class PlayerNotifier extends Notifier<PlayerState> {
     final current = state.currentSong;
     if (current == null) return;
 
-    state = state.copyWith(
-      queue: [current],
-      currentIndex: 0,
-    );
+    state = state.copyWith(queue: [current], currentIndex: 0);
 
     _beginTrackConfirmation(current);
     await _handler.clearUpcomingQueue();
   }
 }
 
-final playerProvider =
-    NotifierProvider<PlayerNotifier, PlayerState>(PlayerNotifier.new);
+final playerProvider = NotifierProvider<PlayerNotifier, PlayerState>(
+  PlayerNotifier.new,
+);
