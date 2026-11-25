@@ -4,7 +4,8 @@ import 'package:flutter/services.dart';
 ///
 /// The widget itself is drawn natively (RemoteViews), so it keeps showing the
 /// last song even when the app UI is closed. Dart pushes the current title,
-/// artist and play state down, and receives the taps on its buttons.
+/// artist, cover and playback position down, and receives the taps on its
+/// buttons.
 class HomeWidgetService {
   HomeWidgetService._();
 
@@ -40,12 +41,18 @@ class HomeWidgetService {
     required String title,
     required String artist,
     required bool isPlaying,
+    String? artwork,
+    required Duration position,
+    required Duration duration,
   }) async {
     try {
       await _channel.invokeMethod<void>('updateWidget', {
         'title': title,
         'artist': artist,
         'isPlaying': isPlaying,
+        'artwork': artwork,
+        'positionMs': position.inMilliseconds,
+        'durationMs': duration.inMilliseconds,
       });
     } catch (_) {
       // Widget not available (tests, web, unsupported launchers).
