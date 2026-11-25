@@ -21,6 +21,7 @@ class SoundWaveApp extends ConsumerStatefulWidget {
 
 class _SoundWaveAppState extends ConsumerState<SoundWaveApp> {
   Timer? _updateTimer;
+  Timer? _widgetProgressTimer;
 
   @override
   void initState() {
@@ -31,6 +32,11 @@ class _SoundWaveAppState extends ConsumerState<SoundWaveApp> {
     Future.microtask(_syncHomeWidget);
     // A button tapped while the app was closed is replayed once we are up.
     Future.microtask(_runPendingWidgetAction);
+    // Keep the widget progress bar moving while music plays.
+    _widgetProgressTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      if (!mounted) return;
+      if (ref.read(playerProvider).isPlaying) _syncHomeWidget();
+    });
     // Delay the check so it never collides with the first-launch permission
     // sheet and never slows down startup.
     _updateTimer = Timer(const Duration(seconds: 3), _checkForUpdate);
@@ -84,7 +90,7 @@ class _SoundWaveAppState extends ConsumerState<SoundWaveApp> {
 
   /// Title and artist for the widget. Falls back to the last saved session so
   /// the demo track the app preloads for browsing never shows up as "current".
-  ({String title, String artist}) _widgetLabels() {
+  ({String title, String artist, String? artwork}) _widgetLabels() {
     final playerState = ref.read(playerProvider);
     var song = playerState.currentSong;
     if (!playerState.isPlaying && playerState.position <= Duration.zero) {
@@ -98,22 +104,28 @@ class _SoundWaveAppState extends ConsumerState<SoundWaveApp> {
     return (
       title: song?.title ?? 'SoundWave',
       artist: song?.artist ?? 'Tap to open',
+      artwork: song?.artworkPath,
     );
   }
 
   void _syncHomeWidget() {
     if (!mounted) return;
     final labels = _widgetLabels();
+    final playerState = ref.read(playerProvider);
     HomeWidgetService.update(
       title: labels.title,
       artist: labels.artist,
-      isPlaying: ref.read(playerProvider).isPlaying,
+      artwork: labels.artwork,
+      isPlaying: playerState.isPlaying,
+      position: playerState.position,
+      duration: playerState.duration,
     );
   }
 
   @override
   void dispose() {
     _updateTimer?.cancel();
+    _widgetProgressTimer?.cancel();
     super.dispose();
   }
 
@@ -145,7 +157,10 @@ class _SoundWaveAppState extends ConsumerState<SoundWaveApp> {
       HomeWidgetService.update(
         title: labels.title,
         artist: labels.artist,
+        artwork: labels.artwork,
         isPlaying: next.isPlaying,
+        position: next.position,
+        duration: next.duration,
       );
     });
 
