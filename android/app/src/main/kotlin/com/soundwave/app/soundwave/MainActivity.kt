@@ -1,5 +1,6 @@
 package com.soundwave.app.soundwave
 
+import android.content.ClipData
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -9,6 +10,7 @@ import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
+import java.io.FileOutputStream
 
 class MainActivity : AudioServiceActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -28,8 +30,8 @@ class MainActivity : AudioServiceActivity() {
                         }
 
                         // Android 8+ needs the user to allow this app to install
-                        // packages; open that settings screen and let the app ask
-                        // the user to tap Update again.
+                        // packages; open that settings screen and let the app
+                        // ask the user to tap Update again.
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
                             !packageManager.canRequestPackageInstalls()
                         ) {
@@ -64,6 +66,55 @@ class MainActivity : AudioServiceActivity() {
                             result.error("install_failed", error.message, null)
                         }
                     }
+
+                    // Used by "Share SoundWave": Android stores the installed
+                    // package as base.apk, so copy it to the cache with a
+                    // friendly name before handing it to the share sheet.
+                    "shareApk" -> Thread {
+                        try {
+                            val versionName = packageManager
+                                .getPackageInfo(packageName, 0)
+                                .versionName ?: "1.0"
+
+                            val sharesDir = File(cacheDir, "shares")
+                            sharesDir.listFiles()?.forEach { it.delete() }
+                            sharesDir.mkdirs()
+
+                            val target = File(sharesDir, "SoundWave-v$versionName.apk")
+                            File(applicationInfo.sourceDir).inputStream().use { input ->
+                                FileOutputStream(target).use { output -> input.copyTo(output) }
+                            }
+
+                            val uri = FileProvider.getUriForFile(
+                                this,
+                                "$packageName.fileprovider",
+                                target,
+                            )
+                            val share = Intent(Intent.ACTION_SEND).apply {
+                                type = "application/vnd.android.package-archive"
+                                putExtra(Intent.EXTRA_STREAM, uri)
+                                putExtra(Intent.EXTRA_SUBJECT, "SoundWave v$versionName")
+                                putExtra(
+                                    Intent.EXTRA_TEXT,
+                                    "SoundWave — feel the music, live the moment.",
+                                )
+                                clipData = ClipData.newRawUri("SoundWave APK", uri)
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+
+                            runOnUiThread {
+                                startActivity(
+                                    Intent.createChooser(share, "Share SoundWave")
+                                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                                )
+                                result.success(target.path)
+                            }
+                        } catch (error: Exception) {
+                            runOnUiThread {
+                                result.error("share_failed", error.message, null)
+                            }
+                        }
+                    }.start()
 
                     else -> result.notImplemented()
                 }

@@ -2,4 +2,6 @@
 <paths>
     <!-- Downloads the in-app updater writes before opening the installer. -->
     <cache-path name="updates" path="updates/" />
+    <!-- Copy of the installed APK handed to the share sheet. -->
+    <cache-path name="shares" path="shares/" />
 </paths>
