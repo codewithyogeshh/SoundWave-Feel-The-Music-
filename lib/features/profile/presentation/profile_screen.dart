@@ -8,6 +8,7 @@ import 'package:soundwave/core/widgets/developer_spotlight_card.dart';
 import 'package:soundwave/core/widgets/glass_card.dart';
 import 'package:soundwave/core/widgets/song_track_tile.dart';
 import 'package:soundwave/features/library/services/library_storage_service.dart';
+import 'package:soundwave/features/profile/services/app_share_service.dart';
 import 'package:soundwave/features/player/models/song_model.dart';
 import 'package:soundwave/shared/providers/library_provider.dart';
 import 'package:soundwave/shared/providers/player_provider.dart';
@@ -461,6 +462,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 subtitle: 'SoundWave v1.2.0 • Designed by Yogesh Chavan',
                 iconColor: currentTheme.secondaryAccent,
                 onTap: () => _showAboutDialog(context),
+              ),
+              const SizedBox(height: 10),
+
+              _buildSettingsTile(
+                icon: Icons.share_rounded,
+                title: 'Share SoundWave',
+                subtitle: 'Sends the APK as SoundWave.apk, never base.apk',
+                iconColor: currentTheme.primaryAccent,
+                onTap: () => _shareApp(context),
               ),
               const SizedBox(height: 10),
 
@@ -926,6 +936,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         );
       },
     );
+  }
+
+  Future<void> _shareApp(BuildContext context) async {
+    try {
+      await AppShareService.share();
+    } catch (error) {
+      debugPrint('ProfileScreen: sharing the app failed: $error');
+      if (!context.mounted) return;
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        const SnackBar(content: Text('Could not share the app on this device.')),
+      );
+    }
   }
 
   void _showAboutDialog(BuildContext context) {
