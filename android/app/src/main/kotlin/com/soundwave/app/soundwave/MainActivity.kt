@@ -13,17 +13,20 @@ import java.io.File
 import java.io.FileOutputStream
 
 class MainActivity : AudioServiceActivity() {
+    private var widgetChannel: MethodChannel? = null
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
         // Used by the home screen widget: Dart pushes the current song and
         // receives play/pause/skip taps from the widget buttons.
-        val widgetChannel = MethodChannel(
+        val channel = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             "soundwave/widget",
         )
-        SoundWaveWidgetProvider.attach(widgetChannel)
-        widgetChannel.setMethodCallHandler { call, result ->
+        widgetChannel = channel
+        SoundWaveWidgetProvider.attach(channel)
+        channel.setMethodCallHandler { call, result ->
             when (call.method) {
                 "updateWidget" -> {
                     val title = call.argument<String>("title") ?: "SoundWave"
@@ -31,6 +34,11 @@ class MainActivity : AudioServiceActivity() {
                     val isPlaying = call.argument<Boolean>("isPlaying") ?: false
                     SoundWaveWidgetProvider.update(this, title, artist, isPlaying)
                     result.success(true)
+                }
+
+                // Taps that arrived while the app was closed are replayed now.
+                "consumePendingAction" -> {
+                    result.success(SoundWaveWidgetProvider.consumePendingAction(this))
                 }
 
                 else -> result.notImplemented()
@@ -140,5 +148,11 @@ class MainActivity : AudioServiceActivity() {
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    override fun onDestroy() {
+        widgetChannel?.let { SoundWaveWidgetProvider.detach(it) }
+        widgetChannel = null
+        super.onDestroy()
     }
 }
