@@ -1,0 +1,26 @@
+name: Apply stricter variety patch
+
+on:
+  workflow_dispatch:
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Apply patch and push to main
+        run: |
+          set -euo pipefail
+          cat tmp-apply/v162.a tmp-apply/v162.b tmp-apply/v162.c > /tmp/p.b64
+          base64 -d /tmp/p.b64 | gunzip > /tmp/p.patch
+          git apply --whitespace=nowarn /tmp/p.patch
+          git rm -r --quiet tmp-apply
+          git config user.name "Yogesh Chavan"
+          git config user.email "yogeshbhai0755@gmail.com"
+          git add -A
+          git commit -m "fix(player): drop every other version of the playing song from up next"
+          git push origin HEAD:main
