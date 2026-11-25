@@ -26,6 +26,16 @@ class HomeWidgetService {
     });
   }
 
+  /// A button pressed while the app was closed is stored natively; this hands
+  /// it over once (and clears it) so the tap is not lost.
+  static Future<String?> consumePendingAction() async {
+    try {
+      return await _channel.invokeMethod<String>('consumePendingAction');
+    } catch (_) {
+      return null;
+    }
+  }
+
   static Future<void> update({
     required String title,
     required String artist,

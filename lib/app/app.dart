@@ -8,6 +8,7 @@ import 'package:soundwave/app/theme/app_theme.dart';
 import 'package:soundwave/features/update/presentation/update_available_dialog.dart';
 import 'package:soundwave/features/update/services/update_service.dart';
 import 'package:soundwave/features/widget/services/home_widget_service.dart';
+import 'package:soundwave/shared/providers/library_provider.dart';
 import 'package:soundwave/shared/providers/player_provider.dart';
 import 'package:soundwave/shared/providers/theme_provider.dart';
 
@@ -28,6 +29,8 @@ class _SoundWaveAppState extends ConsumerState<SoundWaveApp> {
     HomeWidgetService.listen(_handleWidgetAction);
     // Paint the widget with whatever is already loaded (e.g. the resumed song).
     Future.microtask(_syncHomeWidget);
+    // A button tapped while the app was closed is replayed once we are up.
+    Future.microtask(_runPendingWidgetAction);
     // Delay the check so it never collides with the first-launch permission
     // sheet and never slows down startup.
     _updateTimer = Timer(const Duration(seconds: 3), _checkForUpdate);
@@ -40,22 +43,71 @@ class _SoundWaveAppState extends ConsumerState<SoundWaveApp> {
         player.togglePlayPause();
         break;
       case 'next':
-        player.skipToNext();
-        break;
       case 'prev':
-        player.skipToPrevious();
+        if (_hasActivePlayback()) {
+          if (action == 'next') {
+            player.skipToNext();
+          } else {
+            player.skipToPrevious();
+          }
+        } else {
+          // Nothing is loaded yet, so a skip starts the first song instead of
+          // doing nothing at all.
+          final playerState = ref.read(playerProvider);
+          final song = playerState.currentSong;
+          if (song != null) {
+            player.playTrack(song, queue: playerState.queue);
+          }
+        }
         break;
     }
   }
 
-  void _syncHomeWidget() {
+  Future<void> _runPendingWidgetAction() async {
+    final action = await HomeWidgetService.consumePendingAction();
+    if (action == null || !mounted) return;
+    // Let the restored session settle so the tap acts on the right song.
+    await Future<void>.delayed(const Duration(milliseconds: 800));
     if (!mounted) return;
+    _handleWidgetAction(action);
+  }
+
+  /// True when a real song is loaded or the user already started playback.
+  bool _hasActivePlayback() {
     final playerState = ref.read(playerProvider);
-    final song = playerState.currentSong;
-    HomeWidgetService.update(
+    if (playerState.isPlaying || playerState.position > Duration.zero) {
+      return true;
+    }
+    final session = ref.read(storageServiceProvider).getPlaybackSession();
+    return session != null && session.queue.isNotEmpty;
+  }
+
+  /// Title and artist for the widget. Falls back to the last saved session so
+  /// the demo track the app preloads for browsing never shows up as "current".
+  ({String title, String artist}) _widgetLabels() {
+    final playerState = ref.read(playerProvider);
+    var song = playerState.currentSong;
+    if (!playerState.isPlaying && playerState.position <= Duration.zero) {
+      final session = ref.read(storageServiceProvider).getPlaybackSession();
+      if (session != null && session.queue.isNotEmpty) {
+        song = session.queue[session.index.clamp(0, session.queue.length - 1)];
+      } else {
+        song = null;
+      }
+    }
+    return (
       title: song?.title ?? 'SoundWave',
       artist: song?.artist ?? 'Tap to open',
-      isPlaying: playerState.isPlaying,
+    );
+  }
+
+  void _syncHomeWidget() {
+    if (!mounted) return;
+    final labels = _widgetLabels();
+    HomeWidgetService.update(
+      title: labels.title,
+      artist: labels.artist,
+      isPlaying: ref.read(playerProvider).isPlaying,
     );
   }
 
@@ -89,10 +141,10 @@ class _SoundWaveAppState extends ConsumerState<SoundWaveApp> {
           previous?.isPlaying == next.isPlaying) {
         return;
       }
-      final song = next.currentSong;
+      final labels = _widgetLabels();
       HomeWidgetService.update(
-        title: song?.title ?? 'SoundWave',
-        artist: song?.artist ?? 'Tap to open',
+        title: labels.title,
+        artist: labels.artist,
         isPlaying: next.isPlaying,
       );
     });
