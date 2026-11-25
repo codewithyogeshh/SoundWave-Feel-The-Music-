@@ -27,6 +27,11 @@ Future<void> main() async {
   // Initialize Local Storage Service (SharedPreferences)
   final storageService = await LibraryStorageService.create();
 
+  // Apply saved playback/battery preferences before the first track loads.
+  audioHandler.pauseOnHeadphoneUnplug =
+      storageService.getPauseOnHeadphoneUnplug();
+  audioHandler.setBatterySaver(storageService.getBatterySaver());
+
   runApp(
     ProviderScope(
       overrides: [

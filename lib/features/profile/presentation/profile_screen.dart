@@ -11,6 +11,7 @@ import 'package:soundwave/features/library/services/library_storage_service.dart
 import 'package:soundwave/features/profile/services/app_share_service.dart';
 import 'package:soundwave/features/player/models/song_model.dart';
 import 'package:soundwave/shared/providers/library_provider.dart';
+import 'package:soundwave/shared/providers/playback_prefs_provider.dart';
 import 'package:soundwave/shared/providers/player_provider.dart';
 import 'package:soundwave/shared/providers/theme_provider.dart';
 
@@ -49,6 +50,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final profile = storage.getUserProfile();
     final username = _customUsername ?? (profile['username'] as String? ?? 'Yogesh Chavan');
     final totalPlayed = storage.getTotalSongsPlayed();
+    final batterySaver = ref.watch(batterySaverProvider);
+    final pauseOnUnplug = ref.watch(pauseOnHeadphoneUnplugProvider);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -442,6 +445,47 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
               const SizedBox(height: 26),
 
+              // Battery & Device
+              Text('Battery & Device', style: AppTextStyles.sectionTitle.copyWith(fontSize: 16)),
+              const SizedBox(height: 12),
+
+              _buildSwitchTile(
+                icon: Icons.battery_saver_rounded,
+                title: 'Battery Saver Mode',
+                subtitle: 'Turns off background glow and equalizer DSP to save battery',
+                iconColor: currentTheme.primaryAccent,
+                value: batterySaver,
+                onChanged: (val) {
+                  ref.read(batterySaverProvider.notifier).setEnabled(val);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(val ? 'Battery saver on — glow and equalizer effects paused' : 'Battery saver off'),
+                      duration: const Duration(seconds: 1),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 10),
+
+              _buildSwitchTile(
+                icon: Icons.headphones_rounded,
+                title: 'Pause When Headphones Unplug',
+                subtitle: 'Stops the music when your earphones or Bluetooth headset disconnect',
+                iconColor: currentTheme.secondaryAccent,
+                value: pauseOnUnplug,
+                onChanged: (val) {
+                  ref.read(pauseOnHeadphoneUnplugProvider.notifier).setEnabled(val);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(val ? 'Music will pause when headphones disconnect' : 'Music will keep playing without headphones'),
+                      duration: const Duration(seconds: 1),
+                    ),
+                  );
+                },
+              ),
+
+              const SizedBox(height: 26),
+
               // Storage & Scanning
               Text('Storage & Maintenance', style: AppTextStyles.sectionTitle.copyWith(fontSize: 16)),
               const SizedBox(height: 12),
@@ -489,7 +533,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               _buildSettingsTile(
                 icon: Icons.info_outline_rounded,
                 title: 'About App & Version',
-                subtitle: 'SoundWave v1.2.0 • Designed by Yogesh Chavan',
+                subtitle: 'SoundWave v1.4.1 • Designed by Yogesh Chavan',
                 iconColor: currentTheme.secondaryAccent,
                 onTap: () => _showAboutDialog(context),
               ),

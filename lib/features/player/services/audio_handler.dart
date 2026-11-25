@@ -110,6 +110,13 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
   double _volumeBeforeDuck = 1.0;
   bool _disposed = false;
 
+  /// Stops playback when headphones are unplugged or a headset disconnects.
+  /// Toggled from Profile & Settings and remembered across launches.
+  bool pauseOnHeadphoneUnplug = true;
+
+  bool _batterySaver = false;
+  bool get batterySaver => _batterySaver;
+
   late final Future<void> _audioSessionReady;
   StreamSubscription<void>? _noisySub;
   StreamSubscription<AudioInterruptionEvent>? _interruptionSub;
@@ -132,6 +139,13 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
     );
     _audioSessionReady = _initAudioSession();
     _listenToPlayerStreams();
+  }
+
+  /// Battery saver bypasses the equalizer/loudness DSP to reduce CPU use.
+  void setBatterySaver(bool value) {
+    if (_batterySaver == value) return;
+    _batterySaver = value;
+    unawaited(_restoreEqualizer());
   }
 
   AudioPlayer get player => _player;
@@ -163,7 +177,7 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
       if (_disposed) return;
 
       _noisySub = session.becomingNoisyEventStream.listen((_) {
-        if (_disposed) return;
+        if (_disposed || !pauseOnHeadphoneUnplug) return;
         _wasPlayingBeforeInterruption = false;
         pause();
       });
@@ -667,9 +681,10 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
     try {
       // Effects are part of the player's AudioPipeline and default to disabled.
       // Enable both so they are heard; if the user turned the EQ off, bypass them.
-      await _androidEqualizer.setEnabled(_lastEqEnabled);
-      await _loudnessEnhancer.setEnabled(_lastEqEnabled);
-      if (!_lastEqEnabled) return;
+      final enableEffects = _lastEqEnabled && !_batterySaver;
+      await _androidEqualizer.setEnabled(enableEffects);
+      await _loudnessEnhancer.setEnabled(enableEffects);
+      if (!enableEffects) return;
 
       // Effective band gains: preset curve + dynamic bass-boost emphasis on the low bands (60Hz & 230Hz)
       final gains = List<double>.from(_lastEqGains);

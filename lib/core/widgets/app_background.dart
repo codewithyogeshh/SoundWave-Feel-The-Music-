@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:soundwave/shared/providers/playback_prefs_provider.dart';
 import 'package:soundwave/shared/providers/theme_provider.dart';
 
 class AppBackground extends ConsumerWidget {
@@ -15,6 +16,7 @@ class AppBackground extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = ref.watch(themeProvider);
+    final batterySaver = ref.watch(batterySaverProvider);
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 350),
@@ -25,7 +27,7 @@ class AppBackground extends ConsumerWidget {
       ),
       child: Stack(
         children: [
-          if (showGlow) ...[
+          if (showGlow && !batterySaver) ...[
             // Top-center Theme Glow
             Positioned(
               top: -80,

@@ -32,6 +32,8 @@ class LibraryStorageService {
   static const String _keyLastPositionMs = 'sw_last_position_ms';
   static const String _keyPlaybackSpeed = 'sw_playback_speed';
   static const String _keyListenedSeconds = 'sw_stats_listened_seconds';
+  static const String _keyPauseOnUnplug = 'sw_pause_on_headphone_unplug';
+  static const String _keyBatterySaver = 'sw_battery_saver';
 
   final SharedPreferences _prefs;
 
@@ -250,6 +252,25 @@ class LibraryStorageService {
       _keyListenedSeconds,
       getListenedSeconds() + seconds,
     );
+  }
+
+  // --- PLAYBACK & BATTERY PREFERENCES ---
+
+  /// Defaults to true: unplugging headphones has always paused playback.
+  bool getPauseOnHeadphoneUnplug() {
+    return _prefs.getBool(_keyPauseOnUnplug) ?? true;
+  }
+
+  Future<void> setPauseOnHeadphoneUnplug(bool value) async {
+    await _prefs.setBool(_keyPauseOnUnplug, value);
+  }
+
+  bool getBatterySaver() {
+    return _prefs.getBool(_keyBatterySaver) ?? false;
+  }
+
+  Future<void> setBatterySaver(bool value) async {
+    await _prefs.setBool(_keyBatterySaver, value);
   }
 
   // --- USER PROFILE ---
