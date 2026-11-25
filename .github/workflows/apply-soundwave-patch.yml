@@ -15,13 +15,16 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - name: Apply patch and push to main
+      - name: Apply patch parts and push to main
         shell: bash
         run: |
           set -euo pipefail
-          base64 -d tools/soundwave-feature.patch.gz.b64 | gunzip > /tmp/feature.patch
-          git apply --check /tmp/feature.patch
-          git apply /tmp/feature.patch
+          for f in tools/soundwave-feature.patch.part*.gz.b64; do
+            echo "Applying $f"
+            base64 -d "$f" | gunzip > /tmp/feature.patch
+            git apply --check /tmp/feature.patch
+            git apply /tmp/feature.patch
+          done
           git config user.name "Yogesh Chavan"
           git config user.email "yogeshbhai0755@gmail.com"
           git add lib pubspec.yaml pubspec.lock
