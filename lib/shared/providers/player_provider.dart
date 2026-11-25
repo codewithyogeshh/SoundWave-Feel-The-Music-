@@ -86,8 +86,12 @@ class PlayerNotifier extends Notifier<PlayerState> {
   int _listenedBufferMs = 0;
   Duration _lastListenedPosition = Duration.zero;
 
-  /// Where playback should start when the restored song is played again.
+    /// Where playback should start when the restored song is played again.
   Duration? _resumePosition;
+
+  // Queue auto-continue: remembers which song already got more tracks added.
+  String? _continuedForSongId;
+  bool _continuingQueue = false;
 
   // While a local queue/track mutation is awaiting confirmation from the audio
   // engine, stale playback events (e.g. an older queueIndex still in flight from
@@ -112,6 +116,7 @@ class PlayerNotifier extends Notifier<PlayerState> {
     });
 
     _initStreams();
+    unawaited(_restorePlaybackModes());
 
     final initialSongs = SampleMusicData.initialSongs;
     final initialSong = initialSongs.isNotEmpty ? initialSongs.first : null;
@@ -167,6 +172,12 @@ class PlayerNotifier extends Notifier<PlayerState> {
           repeatMode: playbackState.repeatMode,
           playbackSpeed: playbackState.speed,
         );
+      }
+
+      // The last song of the queue started: keep the music going with tracks
+      // that share its vibe.
+      if (playbackState.playing) {
+        unawaited(_continueQueueIfNeeded());
       }
     });
 
@@ -476,10 +487,84 @@ class PlayerNotifier extends Notifier<PlayerState> {
   Future<void> toggleShuffle() async {
     await _handler.toggleShuffle();
     state = state.copyWith(isShuffle: !state.isShuffle);
+    try {
+      await ref
+          .read(storageServiceProvider)
+          .setShuffleEnabled(state.isShuffle);
+    } catch (_) {
+      // Storage is optional in isolated tests.
+    }
   }
 
   Future<void> cycleRepeatMode() async {
     await _handler.cycleRepeatMode();
+    final mode = _handler.playbackState.value.repeatMode;
+    state = state.copyWith(repeatMode: mode);
+    try {
+      await ref.read(storageServiceProvider).setRepeatMode(_repeatModeName(mode));
+    } catch (_) {
+      // Storage is optional in isolated tests.
+    }
+  }
+
+  /// Restores the shuffle/repeat choices the user had when they last listened.
+  Future<void> _restorePlaybackModes() async {
+    try {
+      final storage = ref.read(storageServiceProvider);
+      final shuffle = storage.getShuffleEnabled();
+      final repeat = _repeatModeFromName(storage.getRepeatMode());
+
+      if (shuffle) {
+        await _handler.setShuffleMode(AudioServiceShuffleMode.all);
+      }
+      if (repeat != AudioServiceRepeatMode.none) {
+        await _handler.setRepeatMode(repeat);
+      }
+      if (_isDisposed) return;
+      state = state.copyWith(isShuffle: shuffle, repeatMode: repeat);
+    } catch (_) {
+      // Fresh installs and isolated tests simply start with defaults.
+    }
+  }
+
+  String _repeatModeName(AudioServiceRepeatMode mode) {
+    switch (mode) {
+      case AudioServiceRepeatMode.all:
+        return 'all';
+      case AudioServiceRepeatMode.one:
+        return 'one';
+      default:
+        return 'none';
+    }
+  }
+
+  AudioServiceRepeatMode _repeatModeFromName(String name) {
+    switch (name) {
+      case 'all':
+        return AudioServiceRepeatMode.all;
+      case 'one':
+        return AudioServiceRepeatMode.one;
+      default:
+        return AudioServiceRepeatMode.none;
+    }
+  }
+
+  /// When the last queued song starts, add songs with the same vibe so the
+  /// music does not suddenly stop at the end of a short queue.
+  Future<void> _continueQueueIfNeeded() async {
+    final current = state.currentSong;
+    if (current == null || _isDisposed) return;
+    if (state.repeatMode != AudioServiceRepeatMode.none) return;
+    if (state.currentIndex < state.queue.length - 1) return;
+    if (_continuedForSongId == current.id || _continuingQueue) return;
+
+    _continuingQueue = true;
+    _continuedForSongId = current.id;
+    try {
+      await _topUpQueueWithSimilar(current, _playRequestId);
+    } finally {
+      _continuingQueue = false;
+    }
   }
 
   Future<void> setPlaybackSpeed(double speed) async {

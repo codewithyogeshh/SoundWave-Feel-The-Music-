@@ -38,6 +38,8 @@ class LibraryStorageService {
   static const String _keyPauseOnLowBattery = 'sw_pause_on_low_battery';
   static const String _keyStopWhenSwipedAway = 'sw_stop_on_task_removed';
   static const String _keySleepTimerMinutes = 'sw_sleep_timer_minutes';
+  static const String _keyShuffleEnabled = 'sw_shuffle_enabled';
+  static const String _keyRepeatMode = 'sw_repeat_mode';
   static const String _keyLyricsCache = 'sw_lyrics_cache_v1';
   static const String _keyLyricsOffsets = 'sw_lyrics_offsets_v1';
 
@@ -317,6 +319,24 @@ class LibraryStorageService {
   Future<void> setSleepTimerMinutes(int minutes) async {
     if (minutes <= 0) return;
     await _prefs.setInt(_keySleepTimerMinutes, minutes);
+  }
+
+  /// Shuffle and repeat are remembered so the next launch keeps the same mood.
+  bool getShuffleEnabled() {
+    return _prefs.getBool(_keyShuffleEnabled) ?? false;
+  }
+
+  Future<void> setShuffleEnabled(bool value) async {
+    await _prefs.setBool(_keyShuffleEnabled, value);
+  }
+
+  /// One of `none`, `all` or `one`.
+  String getRepeatMode() {
+    return _prefs.getString(_keyRepeatMode) ?? 'none';
+  }
+
+  Future<void> setRepeatMode(String mode) async {
+    await _prefs.setString(_keyRepeatMode, mode);
   }
 
   // --- OFFLINE LYRICS CACHE ---

@@ -1214,6 +1214,10 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
       upcomingSongs,
       currentId: playerState.currentSong?.id,
     );
+    final upcomingTime = upcomingSongs.fold<Duration>(
+      Duration.zero,
+      (total, song) => total + song.duration,
+    );
 
     if (upcomingSongs.isEmpty) {
       return Container(
@@ -1465,7 +1469,9 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              'Upcoming List',
+              upcomingSongs.isEmpty
+                  ? 'Upcoming List'
+                  : 'Upcoming List • ${DurationFormatter.formatLong(upcomingTime)} left',
               style: AppTextStyles.artistName.copyWith(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
