@@ -1,3 +1,5 @@
+import 'dart:ui' show FontFeature;
+
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -11,7 +13,7 @@ import 'package:soundwave/core/widgets/album_artwork.dart';
 import 'package:soundwave/core/widgets/animated_equalizer.dart';
 import 'package:soundwave/core/widgets/app_background.dart';
 import 'package:soundwave/core/widgets/glass_card.dart';
-import 'package:soundwave/core/widgets/gradient_button.dart';
+import 'package:soundwave/core/widgets/reveal.dart';
 import 'package:soundwave/features/online/widgets/download_options_sheet.dart';
 import 'package:soundwave/features/player/models/song_model.dart';
 import 'package:soundwave/features/player/presentation/widgets/lyrics_viewer.dart';
@@ -33,6 +35,10 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
   double? _dragValue;
   bool _isUpNextExpanded = false;
   bool _showLyrics = false;
+
+  /// Staggered entrance helper: each section eases in slightly after the one
+  /// above it, which is what gives the screen its premium, layered feel.
+  Widget _stagger(int index, Widget child) => Reveal(index: index, child: child);
 
   @override
   Widget build(BuildContext context) {
@@ -80,7 +86,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
               children: [
                 const SizedBox(height: 6),
                 // Top Bar with live Sleep Timer pill & quick actions
-                _buildTopBar(context, song, activeTheme, sleepTimer, playerState.playbackSpeed),
+                _stagger(0, _buildTopBar(context, song, activeTheme, sleepTimer, playerState.playbackSpeed)),
                 const SizedBox(height: 10),
 
                 // Center Album Art or Interactive Karaoke Lyrics
@@ -108,7 +114,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                                 tag: 'album_art_${song.id}',
                                 child: AlbumArtwork(
                                   size: artSize,
-                                  borderRadius: 24,
+                                  borderRadius: 28,
                                   artworkUrl: song.artworkPath,
                                   albumId: song.albumId,
                                   songId: song.rawId,
@@ -116,10 +122,32 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                                   songArtist: song.artist,
                                   hasGlow: true,
                                   glowColor: activeTheme.primaryAccent,
-                                  overlay: Positioned(
-                                    top: 12,
-                                    right: 12,
-                                    child: _buildHeartOverlayButton(isFav, song, activeTheme),
+                                  overlay: Stack(
+                                    fit: StackFit.expand,
+                                    children: [
+                                      // Glass sheen so the cover catches the light.
+                                      IgnorePointer(
+                                        child: DecoratedBox(
+                                          decoration: BoxDecoration(
+                                            gradient: LinearGradient(
+                                              begin: Alignment.topLeft,
+                                              end: Alignment.bottomRight,
+                                              colors: [
+                                                Colors.white.withValues(alpha: 0.16),
+                                                Colors.transparent,
+                                                Colors.black.withValues(alpha: 0.20),
+                                              ],
+                                              stops: const [0.0, 0.42, 1.0],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      Positioned(
+                                        top: 12,
+                                        right: 12,
+                                        child: _buildHeartOverlayButton(isFav, song, activeTheme),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
@@ -176,22 +204,22 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                 const SizedBox(height: 12),
 
                 // Song Title, Artist & HD/Offline Badge
-                _buildSongInfo(song, activeTheme, isDownloaded: libState.isDownloaded(song.id)),
+                _stagger(2, _buildSongInfo(song, activeTheme, isDownloaded: libState.isDownloaded(song.id))),
 
                 const SizedBox(height: 12),
 
                 // Seek Slider & Duration Labels
-                _buildProgressBar(posMs, maxMs, position, duration, activeTheme),
+                _stagger(3, _buildProgressBar(posMs, maxMs, position, duration, activeTheme)),
 
                 const SizedBox(height: 10),
 
                 // Main Player Controls (Shuffle, Prev, Play/Pause, Next, Repeat)
-                _buildPlayerControls(playerState, activeTheme),
+                _stagger(4, _buildPlayerControls(playerState, activeTheme)),
 
                 const SizedBox(height: 8),
 
                 // Quick jump back 10s / forward 30s
-                _buildSeekRow(playerState),
+                _stagger(5, _buildSeekRow(playerState)),
 
                 const SizedBox(height: 10),
 
@@ -201,12 +229,12 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                 const SizedBox(height: 16),
 
                 // Similar & Recommended Tracks
-                _buildRecommendedSection(context, song, activeTheme),
+                _stagger(7, _buildRecommendedSection(context, song, activeTheme)),
 
                 const SizedBox(height: 16),
 
                 // "Up Next" Section
-                _buildUpNextSection(context, playerState, activeTheme),
+                _stagger(8, _buildUpNextSection(context, playerState, activeTheme)),
 
                 const SizedBox(height: 24),
               ],
@@ -224,19 +252,45 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     SleepTimerState sleepTimer,
     double playbackSpeed,
   ) {
-    return Row(
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+      ),
+      child: Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        IconButton(
-          tooltip: 'Minimize player',
-          icon: const Icon(
-            Icons.keyboard_arrow_down_rounded,
-            color: Colors.white,
-            size: 32,
+        Tooltip(
+          message: 'Minimize player',
+          child: Material(
+            color: Colors.transparent,
+            shape: const CircleBorder(),
+            child: InkResponse(
+              radius: 24,
+              onTap: () => Navigator.of(context).pop(),
+              child: Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: 0.07),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.12),
+                  ),
+                ),
+                child: const Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  color: Colors.white,
+                  size: 28,
+                ),
+              ),
+            ),
           ),
-          onPressed: () => Navigator.of(context).pop(),
         ),
-        Column(
+        Expanded(
+          child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
@@ -244,7 +298,9 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
               style: AppTextStyles.sectionTitle.copyWith(fontSize: 16),
             ),
             const SizedBox(height: 2),
-            Row(
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (sleepTimer.isActive) ...[
@@ -303,36 +359,83 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                   ),
                 ),
               ],
+              ),
             ),
           ],
+          ),
         ),
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            IconButton(
-              tooltip: _showLyrics ? 'Show Artwork' : 'Karaoke Lyrics',
-              icon: Icon(
-                _showLyrics ? Icons.music_note_rounded : Icons.mic_external_on_rounded,
-                color: _showLyrics ? activeTheme.primaryAccent : Colors.white,
-                size: 22,
+            Tooltip(
+              message: _showLyrics ? 'Show Artwork' : 'Karaoke Lyrics',
+              child: Material(
+                color: Colors.transparent,
+                shape: const CircleBorder(),
+                child: InkResponse(
+                  radius: 22,
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    setState(() => _showLyrics = !_showLyrics);
+                  },
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: _showLyrics
+                          ? activeTheme.primaryAccent.withValues(alpha: 0.22)
+                          : Colors.white.withValues(alpha: 0.07),
+                      border: Border.all(
+                        color: _showLyrics
+                            ? activeTheme.primaryAccent.withValues(alpha: 0.55)
+                            : Colors.white.withValues(alpha: 0.12),
+                      ),
+                    ),
+                    child: Icon(
+                      _showLyrics
+                          ? Icons.music_note_rounded
+                          : Icons.mic_external_on_rounded,
+                      color: _showLyrics ? activeTheme.primaryAccent : Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                ),
               ),
-              onPressed: () {
-                HapticFeedback.selectionClick();
-                setState(() => _showLyrics = !_showLyrics);
-              },
             ),
-            IconButton(
-              tooltip: 'More options',
-              icon: const Icon(
-                Icons.more_vert_rounded,
-                color: Colors.white,
-                size: 24,
+            const SizedBox(width: 4),
+            Tooltip(
+              message: 'More options',
+              child: Material(
+                color: Colors.transparent,
+                shape: const CircleBorder(),
+                child: InkResponse(
+                  radius: 22,
+                  onTap: () =>
+                      _showMoreOptionsSheet(context, song, activeTheme),
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withValues(alpha: 0.07),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.12),
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.more_vert_rounded,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                  ),
+                ),
               ),
-              onPressed: () => _showMoreOptionsSheet(context, song, activeTheme),
             ),
           ],
         ),
       ],
+      ),
     );
   }
 
@@ -444,54 +547,82 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     Duration duration,
     AppThemeType activeTheme,
   ) {
+    final safeMax = maxMs > 0 ? maxMs : 1.0;
+    final value = posMs.clamp(0.0, safeMax);
+
     return Column(
       children: [
-        SliderTheme(
-          data: SliderTheme.of(context).copyWith(
-            trackHeight: 3.5,
-            activeTrackColor: activeTheme.highlightColor,
-            inactiveTrackColor: Colors.white.withValues(alpha: 0.15),
-            thumbColor: Colors.white,
-            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-            overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
-          ),
-          child: Slider(
-            min: 0.0,
-            max: maxMs > 0 ? maxMs : 1.0,
-            value: posMs.clamp(0.0, maxMs > 0 ? maxMs : 1.0),
-            onChanged: (val) {
-              setState(() {
-                _dragValue = val;
-              });
-            },
-            onChangeEnd: (val) {
-              HapticFeedback.selectionClick();
-              ref
-                  .read(playerProvider.notifier)
-                  .seek(Duration(milliseconds: val.toInt()));
-              setState(() {
-                _dragValue = null;
-              });
-            },
+        // Gradient-filled seek bar: the track is tinted by the active theme
+        // instead of a flat accent line.
+        ShaderMask(
+          blendMode: BlendMode.srcIn,
+          shaderCallback: (rect) => LinearGradient(
+            colors: [
+              activeTheme.primaryAccent,
+              activeTheme.highlightColor,
+            ],
+          ).createShader(rect),
+          child: SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              trackHeight: 4,
+              activeTrackColor: Colors.white,
+              inactiveTrackColor: Colors.white.withValues(alpha: 0.18),
+              thumbColor: Colors.white,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
+              overlayColor: activeTheme.primaryAccent.withValues(alpha: 0.16),
+            ),
+            child: Slider(
+              min: 0.0,
+              max: safeMax,
+              value: value,
+              onChanged: (val) {
+                setState(() {
+                  _dragValue = val;
+                });
+              },
+              onChangeEnd: (val) {
+                HapticFeedback.selectionClick();
+                ref
+                    .read(playerProvider.notifier)
+                    .seek(Duration(milliseconds: val.toInt()));
+                setState(() {
+                  _dragValue = null;
+                });
+              },
+            ),
           ),
         ),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                DurationFormatter.format(position),
-                style: AppTextStyles.timeLabel,
-              ),
-              Text(
-                DurationFormatter.format(duration),
-                style: AppTextStyles.timeLabel,
-              ),
+              _timeChip(DurationFormatter.format(position), dim: true),
+              _timeChip(DurationFormatter.format(duration)),
             ],
           ),
         ),
       ],
+    );
+  }
+
+  Widget _timeChip(String label, {bool dim = false}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(7),
+      ),
+      child: Text(
+        label,
+        style: AppTextStyles.timeLabel.copyWith(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: dim ? AppColors.textMuted : AppColors.textSecondary,
+          fontFeatures: const [FontFeature.tabularFigures()],
+        ),
+      ),
     );
   }
 
@@ -516,65 +647,84 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
           },
         ),
         // Previous
-        IconButton(
+        _roundControl(
           tooltip: 'Previous track',
-          icon: const Icon(
-            Icons.skip_previous_rounded,
-            size: 34,
-            color: Colors.white,
-          ),
+          icon: Icons.skip_previous_rounded,
           onPressed: () {
             HapticFeedback.lightImpact();
             ref.read(playerProvider.notifier).skipToPrevious();
           },
         ),
-        // Main Glow Play / Pause
+        // Main Glow Play / Pause with a breathing halo while music plays.
         Container(
-          width: 72,
-          height: 72,
+          width: 90,
+          height: 90,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: activeTheme.highlightColor.withValues(alpha: 0.42),
-                blurRadius: 26,
-                spreadRadius: 2,
-              ),
-            ],
+            border: Border.all(
+              color: playerState.isPlaying
+                  ? activeTheme.highlightColor.withValues(alpha: 0.35)
+                  : activeTheme.highlightColor.withValues(alpha: 0.14),
+              width: 1.2,
+            ),
           ),
-          child: GradientButton.circle(
-            size: 72,
-            gradient: activeTheme.accentGradient,
-            glowColor: activeTheme.highlightColor,
-            hasGlow: true,
-            onPressed: () {
-              ref.read(playerProvider.notifier).togglePlayPause();
-            },
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 180),
-              transitionBuilder: (child, animation) => ScaleTransition(
-                scale: Tween<double>(begin: 0.85, end: 1.0).animate(animation),
-                child: FadeTransition(opacity: animation, child: child),
+          child: Center(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 460),
+              curve: Curves.easeOutCubic,
+              width: playerState.isPlaying ? 76 : 70,
+              height: playerState.isPlaying ? 76 : 70,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: activeTheme.accentGradient,
+                boxShadow: [
+                  BoxShadow(
+                    color: activeTheme.highlightColor.withValues(
+                      alpha: playerState.isPlaying ? 0.55 : 0.3,
+                    ),
+                    blurRadius: playerState.isPlaying ? 34 : 22,
+                    spreadRadius: playerState.isPlaying ? 4 : 1,
+                  ),
+                ],
               ),
-              child: Icon(
-                playerState.isPlaying
-                    ? Icons.pause_rounded
-                    : Icons.play_arrow_rounded,
-                key: ValueKey<bool>(playerState.isPlaying),
-                color: Colors.white,
-                size: 38,
+              child: Material(
+                color: Colors.transparent,
+                shape: const CircleBorder(),
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: () =>
+                      ref.read(playerProvider.notifier).togglePlayPause(),
+                  child: Center(
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      transitionBuilder: (child, animation) => ScaleTransition(
+                        scale: Tween<double>(begin: 0.8, end: 1.0).animate(
+                          CurvedAnimation(
+                            parent: animation,
+                            curve: Curves.easeOutBack,
+                          ),
+                        ),
+                        child: FadeTransition(opacity: animation, child: child),
+                      ),
+                      child: Icon(
+                        playerState.isPlaying
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
+                        key: ValueKey<bool>(playerState.isPlaying),
+                        color: Colors.white,
+                        size: 36,
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
         ),
         // Next
-        IconButton(
+        _roundControl(
           tooltip: 'Next track',
-          icon: const Icon(
-            Icons.skip_next_rounded,
-            size: 34,
-            color: Colors.white,
-          ),
+          icon: Icons.skip_next_rounded,
           onPressed: () {
             HapticFeedback.lightImpact();
             ref.read(playerProvider.notifier).skipToNext();
@@ -598,6 +748,36 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
           },
         ),
       ],
+    );
+  }
+
+  /// Frosted circular transport button used for previous / next.
+  Widget _roundControl({
+    required String tooltip,
+    required IconData icon,
+    required VoidCallback onPressed,
+    double size = 46,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        child: InkResponse(
+          radius: size * 0.62,
+          onTap: onPressed,
+          child: Container(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white.withValues(alpha: 0.06),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+            ),
+            child: Icon(icon, size: 28, color: Colors.white),
+          ),
+        ),
+      ),
     );
   }
 
