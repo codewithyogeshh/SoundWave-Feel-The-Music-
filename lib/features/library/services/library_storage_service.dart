@@ -34,9 +34,15 @@ class LibraryStorageService {
   static const String _keyListenedSeconds = 'sw_stats_listened_seconds';
   static const String _keyPauseOnUnplug = 'sw_pause_on_headphone_unplug';
   static const String _keyBatterySaver = 'sw_battery_saver';
+  static const String _keyHighQualityStreams = 'sw_high_quality_streams';
   static const String _keyPauseOnLowBattery = 'sw_pause_on_low_battery';
   static const String _keyStopWhenSwipedAway = 'sw_stop_on_task_removed';
   static const String _keySleepTimerMinutes = 'sw_sleep_timer_minutes';
+  static const String _keyLyricsCache = 'sw_lyrics_cache_v1';
+  static const String _keyLyricsOffsets = 'sw_lyrics_offsets_v1';
+
+  /// Enough lyrics for a long offline session without bloating preferences.
+  static const int _lyricsCacheLimit = 150;
 
   final SharedPreferences _prefs;
 
@@ -276,6 +282,15 @@ class LibraryStorageService {
     await _prefs.setBool(_keyBatterySaver, value);
   }
 
+  /// Online tracks stream at 320 kbps unless the user picks data saver.
+  bool getHighQualityStreams() {
+    return _prefs.getBool(_keyHighQualityStreams) ?? true;
+  }
+
+  Future<void> setHighQualityStreams(bool value) async {
+    await _prefs.setBool(_keyHighQualityStreams, value);
+  }
+
   /// Defaults to true: stop at 15% so the last percent is not spent on music.
   bool getPauseOnLowBattery() {
     return _prefs.getBool(_keyPauseOnLowBattery) ?? true;
@@ -304,6 +319,89 @@ class LibraryStorageService {
     await _prefs.setInt(_keySleepTimerMinutes, minutes);
   }
 
+  // --- OFFLINE LYRICS CACHE ---
+  //
+  // Lyrics used to be fetched from LRCLIB on every player open, which meant a
+  // blank karaoke pane the moment the phone lost signal. Every successful
+  // fetch is now cached by song id so lyrics open instantly and work offline.
+  Map<String, dynamic> _readJsonObject(String key) {
+    final raw = _prefs.getString(key);
+    if (raw == null || raw.isEmpty) return <String, dynamic>{};
+    try {
+      final decoded = json.decode(raw);
+      return decoded is Map<String, dynamic> ? decoded : <String, dynamic>{};
+    } catch (_) {
+      return <String, dynamic>{};
+    }
+  }
+
+  String? getCachedLyrics(String cacheKey) {
+    final entry = _readJsonObject(_keyLyricsCache)[cacheKey];
+    if (entry is String) {
+      return entry.isEmpty ? null : entry;
+    }
+    // Legacy entries were stored as {"lrc": ..., "at": ...}.
+    if (entry is Map && entry['lrc'] is String) {
+      final lrc = entry['lrc'] as String;
+      return lrc.isEmpty ? null : lrc;
+    }
+    return null;
+  }
+
+  int getCachedLyricsCount() => _readJsonObject(_keyLyricsCache).length;
+
+  /// On-device size of the cached lyrics payload, shown in Profile.
+  int getCachedLyricsBytes() {
+    final raw = _prefs.getString(_keyLyricsCache);
+    if (raw == null || raw.isEmpty) return 0;
+    return utf8.encode(raw).length;
+  }
+
+  Future<void> putCachedLyrics(String cacheKey, String lrc) async {
+    if (cacheKey.isEmpty || lrc.trim().isEmpty) return;
+    final cache = _readJsonObject(_keyLyricsCache);
+    // Re-inserting keeps map order, so remove first to mark this entry newest.
+    cache.remove(cacheKey);
+    cache[cacheKey] = lrc;
+
+    // JSON object order is insertion order in Dart, so the first keys are the
+    // oldest lyrics and are dropped first once the cache is full.
+    if (cache.length > _lyricsCacheLimit) {
+      final excess = cache.length - _lyricsCacheLimit;
+      for (final key in cache.keys.take(excess).toList()) {
+        cache.remove(key);
+      }
+    }
+
+    await _prefs.setString(_keyLyricsCache, json.encode(cache));
+  }
+
+  Future<void> clearCachedLyrics() async {
+    await _prefs.remove(_keyLyricsCache);
+  }
+
+  // --- LYRICS SYNC OFFSET ---
+  //
+  // Streaming services master lyrics slightly differently from each release,
+  // so the user can nudge the karaoke timing per song. Kept between launches.
+  int getLyricsOffsetMs(String songId) {
+    final value = _readJsonObject(_keyLyricsOffsets)[songId];
+    final offset = value is int ? value : int.tryParse('$value') ?? 0;
+    return offset.clamp(-10000, 10000);
+  }
+
+  Future<void> setLyricsOffsetMs(String songId, int offsetMs) async {
+    if (songId.isEmpty) return;
+    final offsets = _readJsonObject(_keyLyricsOffsets);
+    final clamped = offsetMs.clamp(-10000, 10000);
+    if (clamped == 0) {
+      offsets.remove(songId);
+    } else {
+      offsets[songId] = clamped;
+    }
+    await _prefs.setString(_keyLyricsOffsets, json.encode(offsets));
+  }
+
   // --- USER PROFILE ---
   Map<String, dynamic> getUserProfile() {
     final raw = _prefs.getString(_keyUserProfile);
@@ -321,10 +419,7 @@ class LibraryStorageService {
       'username': 'My Music',
       'email': 'Device Offline Library',
       'avatarUrl': '',
-      'audioQuality': 'HD Lossless (320 kbps)',
       'equalizerPreset': 'Vibrant Bass Boost',
-      'gaplessPlayback': true,
-      'normalizeVolume': true,
     };
   }
 
