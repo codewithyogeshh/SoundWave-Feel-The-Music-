@@ -114,6 +114,9 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
   /// Toggled from Profile & Settings and remembered across launches.
   bool pauseOnHeadphoneUnplug = true;
 
+  /// When true, swiping SoundWave away from recent apps also stops playback.
+  bool stopWhenTaskRemoved = false;
+
   bool _batterySaver = false;
   bool get batterySaver => _batterySaver;
 
@@ -486,7 +489,7 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
 
   @override
   Future<void> onTaskRemoved() async {
-    if (!_player.playing) {
+    if (stopWhenTaskRemoved || !_player.playing) {
       await stop();
     }
     await super.onTaskRemoved();
