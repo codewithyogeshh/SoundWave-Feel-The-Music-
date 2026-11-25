@@ -16,14 +16,51 @@ class LyricsData {
   final bool isSynced;
   final String? songId;
 
+  /// True when these lyrics were served from the on-device cache instead of a
+  /// fresh network fetch.
+  final bool fromCache;
+
   const LyricsData({
     required this.lines,
     this.isSynced = false,
     this.songId,
+    this.fromCache = false,
   });
 
   bool get isEmpty => lines.isEmpty;
   bool get isNotEmpty => lines.isNotEmpty;
+
+  LyricsData copyWith({bool? fromCache}) => LyricsData(
+        lines: lines,
+        isSynced: isSynced,
+        songId: songId,
+        fromCache: fromCache ?? this.fromCache,
+      );
+
+  /// Moves every timestamp by [offset] so the user can re-sync lyrics that the
+  /// provider timed slightly early or late. Lines never go below zero, and the
+  /// result stays sorted so [getActiveLineIndex] keeps working.
+  LyricsData shifted(Duration offset) {
+    if (offset == Duration.zero || lines.isEmpty) return this;
+
+    final shiftedLines = lines
+        .map((line) {
+          final timestamp = line.timestamp + offset;
+          return LyricLine(
+            timestamp: timestamp.isNegative ? Duration.zero : timestamp,
+            text: line.text,
+          );
+        })
+        .toList()
+      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+
+    return LyricsData(
+      lines: shiftedLines,
+      isSynced: isSynced,
+      songId: songId,
+      fromCache: fromCache,
+    );
+  }
 
   int getActiveLineIndex(Duration currentPosition) {
     if (lines.isEmpty) return -1;

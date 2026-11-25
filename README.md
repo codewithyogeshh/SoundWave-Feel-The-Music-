@@ -37,6 +37,14 @@ Once v1.3.3 is installed you no longer need to look for new APKs: the app checks
 - **5 Dynamic Luxury Themes**: Live theme switching across **Cyber Neon**, **Midnight Obsidian (OLED)**, **Royal Amethyst**, **Emerald Aurora**, and **Crimson Eclipse** with full Material 3 surface & accent synchronization.
 - **Now Playing Studio**: Swipeable MiniPlayer (swipe left/right to skip), interactive Up Next queue, working Sleep Timer with live countdown, Equalizer presets, and Track Audio Specs.
 - **Smart Library & Discovery**: Local device audio scanning (`on_audio_query`), multi-criteria filtering & sorting, custom playlists, favorites, and pull-to-refresh online feeds with offline fallback.
+- **Offline Karaoke**: Synced lyrics are cached on the device the first time a track is opened, so the karaoke pane still works with no signal, plus a per-song sync offset to nudge lyrics earlier or later.
+
+## What's New in 1.5.0
+
+- **Home & Now Playing redesign**: staggered entrance animations, a time-aware greeting above the wordmark, gradient category pills, a glowing hero banner, frosted chrome on the player top bar, a haloed play button, gradient seek track and glass time chips.
+- **Lyrics cache**: every synced lyric that loads from LRCLIB is saved locally, so reopening a track shows the karaoke pane instantly and works fully offline. Cached songs show a small **SAVED** badge.
+- **Karaoke sync offset**: nudge lyrics earlier (−) or later (+) in 250 ms steps from the lyrics card or the full-screen view, then tap the value to reset. Each song remembers its own offset.
+- **Packaging**: description and version filled in properly (1.5.0), no more placeholder text in `pubspec.yaml`.
 
 ## What's New in 1.3.2
 
@@ -74,7 +82,7 @@ flutter test
 flutter run
 
 # 5. Build release APK (the version comes from pubspec.yaml)
-flutter build apk --release --dart-define=SOUNDWAVE_VERSION=1.3.3
+flutter build apk --release --dart-define=SOUNDWAVE_VERSION=1.5.0
 ```
 
 Release APKs are built automatically by GitHub Actions: pushing a `v*` tag (or running the **Build APK** workflow manually) builds the APK and attaches it to a GitHub release. The workflow reads `version:` from `pubspec.yaml` and bakes it into the build, which is what the in-app update check compares against the latest release.

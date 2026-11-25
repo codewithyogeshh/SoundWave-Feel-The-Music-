@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:soundwave/features/online/services/online_music_service.dart';
 import 'package:soundwave/shared/providers/library_provider.dart';
 import 'package:soundwave/shared/providers/player_provider.dart';
 
@@ -111,6 +112,34 @@ class StopWhenAppClosedNotifier extends Notifier<bool> {
     } catch (_) {}
     try {
       await ref.read(storageServiceProvider).setStopWhenSwipedAway(value);
+    } catch (_) {}
+  }
+}
+
+/// Picks the 320 kbps or 160 kbps CDN stream for online tracks.
+final highQualityStreamProvider =
+    NotifierProvider<HighQualityStreamNotifier, bool>(
+      HighQualityStreamNotifier.new,
+    );
+
+class HighQualityStreamNotifier extends Notifier<bool> {
+  @override
+  bool build() {
+    bool saved = true;
+    try {
+      saved = ref.read(storageServiceProvider).getHighQualityStreams();
+    } catch (_) {
+      // Storage unavailable (isolated tests) — keep the 320 kbps default.
+    }
+    OnlineMusicService.highQualityStreams = saved;
+    return saved;
+  }
+
+  Future<void> setEnabled(bool value) async {
+    state = value;
+    OnlineMusicService.highQualityStreams = value;
+    try {
+      await ref.read(storageServiceProvider).setHighQualityStreams(value);
     } catch (_) {}
   }
 }

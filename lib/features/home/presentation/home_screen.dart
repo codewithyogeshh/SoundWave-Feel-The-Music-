@@ -8,6 +8,7 @@ import 'package:soundwave/core/widgets/album_artwork.dart';
 import 'package:soundwave/core/widgets/glass_card.dart';
 import 'package:soundwave/core/widgets/gradient_button.dart';
 import 'package:soundwave/core/widgets/loading_widget.dart';
+import 'package:soundwave/core/widgets/reveal.dart';
 import 'package:soundwave/core/widgets/section_header.dart';
 import 'package:soundwave/features/online/widgets/download_options_sheet.dart';
 import 'package:soundwave/features/online/widgets/online_song_tile.dart';
@@ -97,10 +98,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.only(left: 20, right: 20, top: 14, bottom: 8),
-                child: _buildTopHeader(
-                  context,
-                  activeTheme,
-                  downloadedCount: downloadedSongs.length,
+                child: Reveal(
+                  index: 0,
+                  child: _buildTopHeader(
+                    context,
+                    activeTheme,
+                    downloadedCount: downloadedSongs.length,
+                  ),
                 ),
               ),
             ),
@@ -181,31 +185,69 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 activeTheme == AppThemeType.emeraldAurora
                             ? const Color(0xFF090D16)
                             : Colors.white;
-                    return FilterChip(
-                      selected: isSelected,
-                      checkmarkColor: selectedTextColor,
-                      label: Text(genre),
-                      labelStyle: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                        color: isSelected ? selectedTextColor : AppColors.textSecondary,
+                    return Reveal(
+                      index: index,
+                      duration: const Duration(milliseconds: 420),
+                      child: GestureDetector(
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          setState(() {
+                            _selectedGenre = genre;
+                          });
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 260),
+                          curve: Curves.easeOutCubic,
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            gradient: isSelected ? activeTheme.primaryGradient : null,
+                            color: isSelected ? null : AppColors.glassWhiteMedium,
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(
+                              color: isSelected
+                                  ? activeTheme.highlightColor.withValues(alpha: 0.85)
+                                  : AppColors.glassBorderSubtle,
+                              width: isSelected ? 1.2 : 1,
+                            ),
+                            boxShadow: isSelected
+                                ? [
+                                    BoxShadow(
+                                      color: activeTheme.primaryAccent.withValues(alpha: 0.38),
+                                      blurRadius: 16,
+                                      offset: const Offset(0, 5),
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (isSelected) ...[
+                                Icon(
+                                  Icons.bolt_rounded,
+                                  size: 13,
+                                  color: selectedTextColor,
+                                ),
+                                const SizedBox(width: 4),
+                              ],
+                              Text(
+                                genre,
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: isSelected
+                                      ? FontWeight.w800
+                                      : FontWeight.w500,
+                                  color: isSelected
+                                      ? selectedTextColor
+                                      : AppColors.textSecondary,
+                                  letterSpacing: isSelected ? -0.1 : 0,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                      backgroundColor: AppColors.glassWhiteMedium,
-                      selectedColor: activeTheme.primaryAccent,
-                      side: BorderSide(
-                        color: isSelected
-                            ? activeTheme.highlightColor
-                            : AppColors.glassBorderSubtle,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      onSelected: (_) {
-                        HapticFeedback.selectionClick();
-                        setState(() {
-                          _selectedGenre = genre;
-                        });
-                      },
                     );
                   },
                 ),
@@ -224,40 +266,69 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     children: [
                       Row(
                         children: [
+                          // Accent marker that ties the rail to the active theme.
+                          Container(
+                            width: 3,
+                            height: 18,
+                            decoration: BoxDecoration(
+                              gradient: activeTheme.primaryGradient,
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                          const SizedBox(width: 9),
                           Icon(
                             _selectedGenre == 'All'
                                 ? Icons.whatshot_rounded
                                 : Icons.auto_awesome_rounded,
                             color: activeTheme.highlightColor,
-                            size: 21,
+                            size: 20,
                           ),
                           const SizedBox(width: 6),
                           Text(
                             _selectedGenre == 'All'
                                 ? 'Trending Online Hits'
                                 : '$_selectedGenre Hits',
-                            style: AppTextStyles.sectionTitle.copyWith(fontSize: 17),
+                            style: AppTextStyles.sectionTitle.copyWith(
+                              fontSize: 17,
+                              letterSpacing: -0.3,
+                            ),
                           ),
                         ],
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                         decoration: BoxDecoration(
-                          color: activeTheme.primaryAccent.withValues(alpha: 0.16),
-                          borderRadius: BorderRadius.circular(8),
+                          gradient: LinearGradient(
+                            colors: [
+                              activeTheme.primaryAccent.withValues(alpha: 0.26),
+                              activeTheme.secondaryAccent.withValues(alpha: 0.18),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(9),
                           border: Border.all(
-                            color: activeTheme.primaryAccent.withValues(alpha: 0.35),
+                            color: activeTheme.primaryAccent.withValues(alpha: 0.45),
                             width: 0.8,
                           ),
                         ),
-                        child: Text(
-                          '320 KBPS',
-                          style: TextStyle(
-                            color: activeTheme.primaryAccent,
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.4,
-                          ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.hd_rounded,
+                              size: 11,
+                              color: activeTheme.primaryAccent,
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              '320 KBPS',
+                              style: TextStyle(
+                                color: activeTheme.primaryAccent,
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.4,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -517,6 +588,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
+  /// Time-aware eyebrow line above the wordmark — a small premium touch that
+  /// makes the home screen feel alive without adding another menu item.
+  String _greeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 5) return 'LATE NIGHT SESSIONS';
+    if (hour < 12) return 'GOOD MORNING';
+    if (hour < 17) return 'GOOD AFTERNOON';
+    if (hour < 21) return 'GOOD EVENING';
+    return 'NIGHT OWL MODE';
+  }
+
   Widget _buildTopHeader(
     BuildContext context,
     AppThemeType activeTheme, {
@@ -526,50 +608,66 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         // Left: Brand Logo & Tagline
-        Row(
+        Expanded(
+          child: Row(
           children: [
+            // Brand mark: rounded gradient tile with a soft outer glow.
             Container(
-              width: 40,
-              height: 40,
+              width: 46,
+              height: 46,
               decoration: BoxDecoration(
                 gradient: activeTheme.primaryGradient,
-                borderRadius: BorderRadius.circular(13),
+                borderRadius: BorderRadius.circular(15),
                 boxShadow: [
                   BoxShadow(
-                    color: activeTheme.primaryAccent.withValues(alpha: 0.3),
-                    blurRadius: 12,
-                    offset: const Offset(0, 3),
+                    color: activeTheme.primaryAccent.withValues(alpha: 0.42),
+                    blurRadius: 18,
+                    spreadRadius: 1,
+                    offset: const Offset(0, 6),
                   ),
                 ],
               ),
               child: const Icon(
                 Icons.graphic_eq_rounded,
                 color: Colors.white,
-                size: 22,
+                size: 24,
               ),
             ),
-            const SizedBox(width: 12),
-            Column(
+            const SizedBox(width: 13),
+            Flexible(
+              child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'SoundWave',
-                  style: AppTextStyles.cardTitle.copyWith(
-                    fontSize: 19,
-                    letterSpacing: -0.4,
+                  _greeting(),
+                  style: AppTextStyles.badgeText.copyWith(
+                    color: activeTheme.highlightColor,
+                    fontSize: 8.5,
+                    letterSpacing: 1.5,
                   ),
                 ),
-                const SizedBox(height: 1),
+                const SizedBox(height: 2),
+                Text(
+                  'SoundWave',
+                  style: AppTextStyles.cardTitle.copyWith(
+                    fontSize: 22,
+                    letterSpacing: -0.7,
+                  ),
+                ),
                 Text(
                   'Feel the music, live the moment.',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.timeLabel.copyWith(
                     color: AppColors.textMuted,
-                    fontSize: 11,
+                    fontSize: 10.5,
                   ),
                 ),
               ],
+              ),
             ),
           ],
+          ),
         ),
 
         // Right: Live Search Shortcut, Offline Library Badge, and Profile Avatar
@@ -703,11 +801,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ? downloadedMatch!.artworkPath
         : heroSong.artworkPath;
 
-    return Container(
+    return Reveal(
+      index: 1,
+      child: Container(
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      height: 200,
+      height: 218,
       child: GlassCard(
-        borderRadius: 26,
+        borderRadius: 30,
         blur: 0,
         padding: EdgeInsets.zero,
         gradient: LinearGradient(
@@ -721,12 +821,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         borderColor: activeTheme.primaryAccent.withValues(alpha: 0.34),
         child: Stack(
           children: [
+            // Ambient theme glow bleeding out from behind the artwork.
+            Positioned(
+              right: -30,
+              top: -40,
+              width: 230,
+              height: 230,
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        activeTheme.primaryAccent.withValues(alpha: 0.34),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
             // Right-aligned Artwork with Gradient Mask
             Positioned(
               right: 0,
               top: 0,
               bottom: 0,
-              width: 196,
+              width: 208,
               child: ShaderMask(
                 shaderCallback: (rect) {
                   return const LinearGradient(
@@ -742,7 +863,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 },
                 blendMode: BlendMode.dstIn,
                 child: AlbumArtwork(
-                  size: 200,
+                  size: 216,
                   borderRadius: 0,
                   artworkUrl: effectiveArtwork,
                   albumId: downloadedMatch?.albumId ?? heroSong.albumId,
@@ -803,7 +924,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           heroSong.title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: AppTextStyles.cardTitle.copyWith(fontSize: 20),
+                          style: AppTextStyles.cardTitle.copyWith(
+                            fontSize: 22,
+                            letterSpacing: -0.4,
+                          ),
                         ),
                         const SizedBox(height: 4),
                         Text(
@@ -863,6 +987,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

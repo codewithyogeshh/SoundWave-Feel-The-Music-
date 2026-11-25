@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:ui' show lerpDouble;
+import 'dart:ui' show FontFeature, lerpDouble;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -117,27 +117,21 @@ class _LyricsViewerState extends ConsumerState<LyricsViewer> {
   Widget build(BuildContext context) {
     final activeTheme = ref.watch(themeProvider);
     final lyricsAsync = ref.watch(currentSongLyricsProvider);
+    final fromCache = ref.watch(lyricsFromCacheProvider);
     final playerState = ref.watch(playerProvider);
     final currentPos = playerState.position;
+    final loadedLyrics = lyricsAsync.asData?.value;
+    final plainOnly =
+        loadedLyrics != null && loadedLyrics.isNotEmpty && !loadedLyrics.isSynced;
 
     final body = lyricsAsync.when(
       loading: () => const Center(
         child: CircularProgressIndicator.adaptive(),
       ),
-      error: (_, _) => Center(
-        child: Text(
-          'No lyrics available for this song',
-          style: AppTextStyles.subtitle.copyWith(color: AppColors.textMuted),
-        ),
-      ),
+      error: (_, _) => LyricsUnavailable(fullScreen: widget.fullScreen),
       data: (lyrics) {
         if (lyrics.isEmpty) {
-          return Center(
-            child: Text(
-              'No lyrics found for this song',
-              style: AppTextStyles.subtitle.copyWith(color: AppColors.textMuted),
-            ),
-          );
+          return LyricsUnavailable(fullScreen: widget.fullScreen);
         }
 
         // New song / new lyrics: start again from the top without animation.
@@ -246,24 +240,92 @@ class _LyricsViewerState extends ConsumerState<LyricsViewer> {
         children: [
           // Header Bar
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: const EdgeInsets.only(left: 12, right: 8, top: 6, bottom: 6),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    Icon(
-                      Icons.mic_external_on_rounded,
-                      color: activeTheme.primaryAccent,
-                      size: 18,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Live Karaoke Lyrics',
-                      style: AppTextStyles.cardTitle.copyWith(fontSize: 14),
-                    ),
-                  ],
+                Icon(
+                  Icons.mic_external_on_rounded,
+                  color: activeTheme.primaryAccent,
+                  size: 18,
                 ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          'Live Karaoke Lyrics',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.cardTitle.copyWith(fontSize: 14),
+                        ),
+                      ),
+                      if (fromCache) ...[
+                        const SizedBox(width: 6),
+                        Tooltip(
+                          message: 'Lyrics saved on this device',
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 5,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: activeTheme.primaryAccent.withValues(alpha: 0.16),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.offline_pin_rounded,
+                                  size: 10,
+                                  color: activeTheme.primaryAccent,
+                                ),
+                                const SizedBox(width: 2),
+                                Text(
+                                  'SAVED',
+                                  style: TextStyle(
+                                    color: activeTheme.primaryAccent,
+                                    fontSize: 8,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.4,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                      if (plainOnly) ...[
+                        const SizedBox(width: 6),
+                        Tooltip(
+                          message: 'Plain lyrics — no timestamps to follow',
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 5,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.10),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              'PLAIN',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.75),
+                                fontSize: 8,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.4,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const LyricsSyncControls(compact: true),
+                const SizedBox(width: 4),
                 Tooltip(
                   message: 'Full screen lyrics',
                   child: GestureDetector(
@@ -306,6 +368,180 @@ class _LyricsViewerState extends ConsumerState<LyricsViewer> {
           const Divider(height: 1, color: Colors.white10),
           Expanded(child: body),
         ],
+      ),
+    );
+  }
+}
+
+/// Honest empty state for a track with no published lyrics.
+///
+/// Nothing is invented in its place; retry refetches from LRCLIB (and the
+/// JioSaavn fallback) without touching the rest of the player.
+class LyricsUnavailable extends ConsumerWidget {
+  /// Full-screen mode uses larger type and spacing.
+  final bool fullScreen;
+
+  const LyricsUnavailable({super.key, this.fullScreen = false});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final activeTheme = ref.watch(themeProvider);
+    final isLoading = ref.watch(currentSongLyricsProvider).isLoading;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.lyrics_outlined,
+              size: fullScreen ? 42 : 26,
+              color: AppColors.textMuted,
+            ),
+            SizedBox(height: fullScreen ? 14 : 8),
+            Text(
+              'No lyrics available for this song',
+              textAlign: TextAlign.center,
+              style: AppTextStyles.subtitle.copyWith(
+                color: Colors.white70,
+                fontSize: fullScreen ? 16 : 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            SizedBox(height: fullScreen ? 6 : 3),
+            Text(
+              'LRCLIB has no synced or plain lyrics for this track yet.',
+              textAlign: TextAlign.center,
+              style: AppTextStyles.subtitle.copyWith(
+                color: AppColors.textMuted,
+                fontSize: fullScreen ? 12.5 : 10.5,
+              ),
+            ),
+            SizedBox(height: fullScreen ? 18 : 9),
+            OutlinedButton.icon(
+              onPressed: isLoading
+                  ? null
+                  : () {
+                      HapticFeedback.selectionClick();
+                      ref.invalidate(currentSongLyricsProvider);
+                    },
+              style: OutlinedButton.styleFrom(
+                foregroundColor: activeTheme.primaryAccent,
+                side: BorderSide(
+                  color: activeTheme.primaryAccent.withValues(alpha: 0.5),
+                ),
+                padding: EdgeInsets.symmetric(
+                  horizontal: fullScreen ? 18 : 12,
+                  vertical: fullScreen ? 10 : 4,
+                ),
+                minimumSize: Size(0, fullScreen ? 40 : 30),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              icon: isLoading
+                  ? const SizedBox(
+                      width: 13,
+                      height: 13,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(Icons.refresh_rounded, size: fullScreen ? 17 : 14),
+              label: Text(
+                isLoading ? 'Searching…' : 'Retry',
+                style: TextStyle(fontSize: fullScreen ? 13 : 11),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Karaoke sync nudge: pulls the lyrics earlier (−) or pushes them later (+).
+/// The value in the middle resets the per-song offset back to zero.
+class LyricsSyncControls extends ConsumerWidget {
+  /// Compact renders the pill used in the inline lyrics card header.
+  final bool compact;
+
+  const LyricsSyncControls({super.key, this.compact = false});
+
+  String _label(int offsetMs) {
+    if (offsetMs == 0) return '0.0s';
+    final sign = offsetMs > 0 ? '+' : '−';
+    return '$sign${(offsetMs.abs() / 1000).toStringAsFixed(2)}s';
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final activeTheme = ref.watch(themeProvider);
+    final offsetMs = ref.watch(lyricsOffsetProvider);
+    final notifier = ref.read(lyricsOffsetProvider.notifier);
+    final textSize = compact ? 9.5 : 11.5;
+    final buttonSize = compact ? 20.0 : 28.0;
+
+    Widget button({required IconData icon, required VoidCallback onTap}) {
+      return InkResponse(
+        radius: buttonSize / 2 + 4,
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
+        child: SizedBox(
+          width: buttonSize,
+          height: buttonSize,
+          child: Icon(icon, size: compact ? 13 : 17, color: activeTheme.primaryAccent),
+        ),
+      );
+    }
+
+    return Tooltip(
+      message: 'Lyrics sync — tap the value to reset',
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: compact ? 2 : 4, vertical: compact ? 1 : 3),
+        decoration: BoxDecoration(
+          color: activeTheme.primaryAccent.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(compact ? 7 : 10),
+          border: Border.all(
+            color: activeTheme.primaryAccent.withValues(alpha: 0.32),
+            width: 0.8,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            button(
+              icon: Icons.remove_rounded,
+              onTap: () => notifier.nudge(-LyricsOffsetNotifier.stepMs),
+            ),
+            GestureDetector(
+              onTap: () {
+                HapticFeedback.lightImpact();
+                notifier.reset();
+              },
+              child: Container(
+                constraints: BoxConstraints(minWidth: compact ? 34 : 44),
+                alignment: Alignment.center,
+                child: Text(
+                  _label(offsetMs),
+                  style: TextStyle(
+                    color: offsetMs == 0
+                        ? AppColors.textMuted
+                        : activeTheme.primaryAccent,
+                    fontSize: textSize,
+                    fontWeight: FontWeight.w700,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ),
+            ),
+            button(
+              icon: Icons.add_rounded,
+              onTap: () => notifier.nudge(LyricsOffsetNotifier.stepMs),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -1,11 +1,20 @@
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
+import 'package:soundwave/features/library/services/library_storage_service.dart';
 import 'package:soundwave/features/player/models/lyrics_model.dart';
 import 'package:soundwave/features/player/models/song_model.dart';
+import 'package:soundwave/shared/providers/library_provider.dart';
 import 'package:soundwave/shared/providers/player_provider.dart';
 
 class LyricsService {
+  /// Fast path for lyrics already loaded in this session, so reopening the
+  /// player does not even touch SharedPreferences.
+  static final Map<String, String> _memoryCache = <String, String>{};
+
+  /// Identifies a track's lyrics. Ids are unique per source (online ids,
+  /// downloaded ids and local file ids never collide).
+  static String cacheKeyFor(SongModel song) => song.id;
   static const Map<String, String> _builtinLyrics = {
     'sample_1': '''
 [00:02.00] In the quiet of the midnight air
@@ -47,8 +56,18 @@ class LyricsService {
 ''',
   };
 
-  /// Fetches or generates synchronized lyrics for any track
-  static Future<LyricsData> getLyricsForSong(SongModel? song) async {
+  /// Fetches published lyrics for a track — synchronized when a provider has
+  /// an LRC master, plain text otherwise, and empty when nothing is published.
+  ///
+  /// Lyrics are never invented: a track with no published lyrics returns an
+  /// empty [LyricsData] so the player can show its "no lyrics" state honestly.
+  ///
+  /// Cached lyrics win over the network, which is what makes karaoke work on a
+  /// flight or in a weak-signal area after the song has been opened once.
+  static Future<LyricsData> getLyricsForSong(
+    SongModel? song, {
+    LibraryStorageService? storage,
+  }) async {
     if (song == null) {
       return const LyricsData(lines: [], isSynced: false);
     }
@@ -66,9 +85,19 @@ class LyricsService {
       }
     }
 
-    // Attempt real online synchronized LRC lyrics via LRCLIB
+    final cacheKey = cacheKeyFor(song);
+    final cached = _memoryCache[cacheKey] ?? storage?.getCachedLyrics(cacheKey);
+    if (cached != null && cached.trim().isNotEmpty) {
+      _memoryCache[cacheKey] = cached;
+      return LyricsData.parseLrc(cached, songId: song.id)
+          .copyWith(fromCache: true);
+    }
+
+    // Real lyrics only, in order of quality: LRCLIB (synced, then plain),
+    // then JioSaavn's plain lyrics for online tracks.
     final onlineLrc = await _fetchOnlineLrc(song.title, song.artist);
     if (onlineLrc != null && onlineLrc.isNotEmpty) {
+      await _cacheLyrics(cacheKey, onlineLrc, storage);
       return LyricsData.parseLrc(onlineLrc, songId: song.id);
     }
 
@@ -76,12 +105,28 @@ class LyricsService {
     if (song.sourceType == AudioSourceType.network && song.id.startsWith('online_')) {
       final saavnLrc = await _fetchOnlineLyrics(song.id.substring(7));
       if (saavnLrc != null && saavnLrc.isNotEmpty) {
+        await _cacheLyrics(cacheKey, saavnLrc, storage);
         return LyricsData.parseLrc(saavnLrc, songId: song.id);
       }
     }
 
-    // Rhythmic procedural synced lyrics so any local or online song has interactive karaoke!
-    return _generateDynamicSyncedLyrics(song);
+    // Nothing published for this track: report it empty instead of showing
+    // made-up lines as if they were the song's lyrics.
+    return LyricsData(lines: const [], isSynced: false, songId: song.id);
+  }
+
+  static Future<void> _cacheLyrics(
+    String cacheKey,
+    String lrc,
+    LibraryStorageService? storage,
+  ) async {
+    _memoryCache[cacheKey] = lrc;
+    if (storage == null) return;
+    try {
+      await storage.putCachedLyrics(cacheKey, lrc);
+    } catch (_) {
+      // A failed cache write must never break the lyrics that just loaded.
+    }
   }
 
   static String _cleanTitle(String title) {
@@ -100,10 +145,23 @@ class LyricsService {
     return artist.split(',')[0].split('&')[0].trim();
   }
 
-  /// Fetches real synchronized LRC lyrics from LRCLIB database
+  /// Fetches published lyrics from the LRCLIB database. Synced LRC wins; when
+  /// only plain lyrics exist they are returned instead (parsed as unsynced, so
+  /// the viewer can show them without pretending to follow the song).
   static Future<String?> _fetchOnlineLrc(String rawTitle, String rawArtist) async {
     final title = _cleanTitle(rawTitle);
     final artist = _cleanArtist(rawArtist);
+    String? plain;
+
+    String? pickSynced(Map<String, dynamic> item) {
+      final synced = item['syncedLyrics']?.toString();
+      if (synced != null && synced.trim().isNotEmpty) return synced;
+      final plainLyrics = item['plainLyrics']?.toString();
+      if (plainLyrics != null && plainLyrics.trim().isNotEmpty) {
+        plain ??= plainLyrics;
+      }
+      return null;
+    }
 
     // 1. Direct match by track_name & artist_name
     try {
@@ -116,10 +174,8 @@ class LyricsService {
 
       if (res.statusCode == 200) {
         final data = json.decode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
-        final synced = data['syncedLyrics']?.toString();
-        if (synced != null && synced.trim().isNotEmpty) {
-          return synced;
-        }
+        final synced = pickSynced(data);
+        if (synced != null) return synced;
       }
     } catch (_) {}
 
@@ -134,15 +190,14 @@ class LyricsService {
       if (res.statusCode == 200) {
         final list = json.decode(utf8.decode(res.bodyBytes)) as List<dynamic>;
         for (final item in list) {
-          final synced = item['syncedLyrics']?.toString();
-          if (synced != null && synced.trim().isNotEmpty) {
-            return synced;
-          }
+          if (item is! Map<String, dynamic>) continue;
+          final synced = pickSynced(item);
+          if (synced != null) return synced;
         }
       }
     } catch (_) {}
 
-    return null;
+    return plain;
   }
 
   static Future<String?> _fetchOnlineLyrics(String songId) async {
@@ -167,45 +222,62 @@ class LyricsService {
     return null;
   }
 
-  static LyricsData _generateDynamicSyncedLyrics(SongModel song) {
-    final title = song.title;
-    final artist = song.artist;
-    final dur = song.duration.inSeconds > 30 ? song.duration.inSeconds : 180;
-    final interval = (dur / 12).clamp(8, 22).toDouble();
+}
 
-    final verses = [
-      '♪ Music Intro • Feel the SoundWave ♪',
-      'Listen to the rhythm of "$title"',
-      'Melody flowing from $artist',
-      'Let the bassline carry you away',
-      'Every frequency locked in tune',
-      'Echoes dancing under the silver moon',
-      'High fidelity streaming in your ears',
-      'Washing off the weight of yesterday',
-      'Feel the crescendo rising up high',
-      'Soundwaves soaring to the sky',
-      'Harmonies blending pure and sweet',
-      'Lose yourself inside the beat',
-      '♪ Outro • Pure SoundWave Experience ♪',
-    ];
+/// Per-song karaoke sync nudge, in milliseconds. Positive values push lyrics
+/// later, negative values pull them earlier.
+final lyricsOffsetProvider =
+    NotifierProvider<LyricsOffsetNotifier, int>(LyricsOffsetNotifier.new);
 
-    final lines = <LyricLine>[];
-    for (int i = 0; i < verses.length; i++) {
-      final seconds = (i * interval).toInt();
-      if (seconds >= dur) break;
-      lines.add(
-        LyricLine(
-          timestamp: Duration(seconds: seconds),
-          text: verses[i],
-        ),
-      );
+class LyricsOffsetNotifier extends Notifier<int> {
+  String? _songId;
+
+  @override
+  int build() {
+    final songId = ref.watch(playerProvider.select((s) => s.currentSong?.id));
+    _songId = songId;
+    if (songId == null) return 0;
+    try {
+      return ref.read(storageServiceProvider).getLyricsOffsetMs(songId);
+    } catch (_) {
+      return 0;
     }
-
-    return LyricsData(lines: lines, isSynced: true, songId: song.id);
   }
+
+  static const int stepMs = 250;
+
+  Future<void> nudge(int deltaMs) async {
+    final songId = _songId;
+    if (songId == null) return;
+    final next = (state + deltaMs).clamp(-10000, 10000);
+    if (next == state) return;
+    state = next;
+    try {
+      await ref.read(storageServiceProvider).setLyricsOffsetMs(songId, next);
+    } catch (_) {
+      // Persistence is best effort; the nudge still applies this session.
+    }
+  }
+
+  Future<void> reset() => nudge(-state);
 }
 
 final currentSongLyricsProvider = FutureProvider<LyricsData>((ref) async {
   final song = ref.watch(playerProvider.select((s) => s.currentSong));
-  return await LyricsService.getLyricsForSong(song);
+  final offsetMs = ref.watch(lyricsOffsetProvider);
+
+  LibraryStorageService? storage;
+  try {
+    storage = ref.read(storageServiceProvider);
+  } catch (_) {
+    // Isolated tests may not override storage.
+  }
+
+  final lyrics = await LyricsService.getLyricsForSong(song, storage: storage);
+  return lyrics.shifted(Duration(milliseconds: offsetMs));
+});
+
+/// True while the karaoke pane is showing lyrics served from the local cache.
+final lyricsFromCacheProvider = Provider<bool>((ref) {
+  return ref.watch(currentSongLyricsProvider).asData?.value.fromCache ?? false;
 });

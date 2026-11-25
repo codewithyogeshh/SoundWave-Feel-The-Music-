@@ -13,6 +13,7 @@ import 'package:soundwave/features/library/models/playlist_model.dart';
 import 'package:soundwave/features/library/models/song_filter_state.dart';
 import 'package:soundwave/features/library/presentation/playlist_detail_screen.dart';
 import 'package:soundwave/features/library/widgets/song_filter_bar.dart';
+import 'package:soundwave/features/online/presentation/downloads_screen.dart';
 import 'package:soundwave/features/player/models/song_model.dart';
 import 'package:soundwave/shared/providers/library_provider.dart';
 import 'package:soundwave/shared/providers/player_provider.dart';
@@ -62,12 +63,32 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text('Your Library', style: AppTextStyles.screenTitle),
-                  GradientButton.circle(
-                    size: 38,
-                    gradient: activeTheme.accentGradient,
-                    glowColor: activeTheme.primaryAccent,
-                    onPressed: () => _showCreatePlaylistDialog(context),
-                    child: const Icon(Icons.add_rounded, color: Colors.white, size: 22),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        tooltip: 'Downloads & storage',
+                        icon: const Icon(
+                          Icons.download_for_offline_outlined,
+                          color: Colors.white,
+                          size: 22,
+                        ),
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const DownloadsScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                      GradientButton.circle(
+                        size: 38,
+                        gradient: activeTheme.accentGradient,
+                        glowColor: activeTheme.primaryAccent,
+                        onPressed: () => _showCreatePlaylistDialog(context),
+                        child: const Icon(Icons.add_rounded, color: Colors.white, size: 22),
+                      ),
+                    ],
                   ),
                 ],
               ),

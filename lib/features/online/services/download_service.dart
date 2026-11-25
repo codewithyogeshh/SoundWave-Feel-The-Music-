@@ -372,6 +372,53 @@ class DownloadService {
     }
   }
 
+  /// Bytes one download occupies on the device: its audio file plus the
+  /// cached cover banner. Falls back to the stored metadata size when the
+  /// files cannot be read (e.g. downloads moved to public storage).
+  static Future<int> downloadedBytes(SongModel song) async {
+    if (kIsWeb) return song.fileSize ?? 0;
+    final counted = <String>{};
+    var total = 0;
+
+    Future<void> addPath(String? path) async {
+      if (path == null) return;
+      final trimmed = path.trim();
+      if (trimmed.isEmpty ||
+          trimmed.startsWith('http') ||
+          trimmed.startsWith('assets/') ||
+          trimmed.startsWith('asset://')) {
+        return;
+      }
+      final normalized = trimmed.startsWith('file://')
+          ? (Uri.tryParse(trimmed)?.toFilePath() ?? trimmed.substring(7))
+          : trimmed;
+      if (!counted.add(normalized)) return;
+      try {
+        final file = File(normalized);
+        if (await file.exists()) total += await file.length();
+      } catch (_) {}
+    }
+
+    await addPath(song.audioPath);
+    await addPath(song.artworkPath);
+    try {
+      final artFile = await getArtworkFileForId(song.id);
+      await addPath(artFile.path);
+    } catch (_) {}
+
+    if (total == 0 && song.fileSize != null) return song.fileSize!;
+    return total;
+  }
+
+  /// Combined on-device size of [songs], for the Downloads storage summary.
+  static Future<int> totalDownloadedBytes(Iterable<SongModel> songs) async {
+    var total = 0;
+    for (final song in songs) {
+      total += await downloadedBytes(song);
+    }
+    return total;
+  }
+
   /// Sanitize filename by stripping illegal characters
   static String _sanitizeFileName(String name) {
     return name
