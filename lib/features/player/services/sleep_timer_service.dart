@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:soundwave/shared/providers/library_provider.dart';
 import 'package:soundwave/shared/providers/player_provider.dart';
 
 /// How the sleep timer decides when to stop playback.
@@ -47,6 +48,7 @@ class SleepTimerState {
 class SleepTimerNotifier extends Notifier<SleepTimerState> {
   Timer? _timer;
   static const int _fadeSeconds = 25;
+  static const int _endOfTrackFadeSeconds = 15;
 
   /// Song that must finish before an [SleepTimerMode.endOfTrack] timer fires.
   String? _endOfTrackSongId;
@@ -63,6 +65,7 @@ class SleepTimerNotifier extends Notifier<SleepTimerState> {
     _timer?.cancel();
     _endOfTrackSongId = null;
     final duration = Duration(minutes: minutes);
+    _rememberMinutes(minutes);
     state = SleepTimerState(
       isActive: true,
       totalMinutes: minutes,
@@ -134,6 +137,8 @@ class SleepTimerNotifier extends Notifier<SleepTimerState> {
       if (songChanged) {
         _timer?.cancel();
         _endOfTrackSongId = null;
+        // Undo any fade so the next song is never silent.
+        _setVolumeSafe(1.0);
         state = const SleepTimerState();
         ref.read(playerProvider.notifier).pause();
         return;
@@ -142,8 +147,13 @@ class SleepTimerNotifier extends Notifier<SleepTimerState> {
       if (!now.isPlaying) {
         _timer?.cancel();
         _endOfTrackSongId = null;
+        _setVolumeSafe(1.0);
         state = const SleepTimerState();
+        return;
       }
+      // Drift away gently: duck the volume over the closing seconds of the song
+      // instead of stopping it abruptly.
+      _applyEndOfTrackFade(now);
     });
   }
 
@@ -152,6 +162,7 @@ class SleepTimerNotifier extends Notifier<SleepTimerState> {
       startTimer(minutes);
       return;
     }
+    _rememberMinutes(state.totalMinutes + minutes);
     final extended = state.remaining + Duration(minutes: minutes);
     state = state.copyWith(
       totalMinutes: state.totalMinutes + minutes,
@@ -167,6 +178,42 @@ class SleepTimerNotifier extends Notifier<SleepTimerState> {
     _endOfTrackSongId = null;
     _setVolumeSafe(1.0);
     state = const SleepTimerState(isActive: false, currentVolume: 1.0);
+  }
+
+  /// Gently lowers the volume in the last [_endOfTrackFadeSeconds] of the song
+  /// that "End of song" will stop on. Seeking back to the middle restores it.
+  void _applyEndOfTrackFade(PlayerState now) {
+    final duration = now.duration;
+    if (duration <= Duration.zero) return;
+
+    final remaining = duration - now.position;
+    final fadeMs = _endOfTrackFadeSeconds * 1000;
+    var volume = 1.0;
+    var fading = false;
+
+    if (remaining > Duration.zero && remaining.inMilliseconds <= fadeMs) {
+      final progress = (remaining.inMilliseconds / fadeMs).clamp(0.0, 1.0);
+      volume = (progress * progress).clamp(0.05, 1.0);
+      fading = true;
+    }
+
+    if (fading == state.isFading &&
+        (volume - state.currentVolume).abs() < 0.005) {
+      return;
+    }
+    _setVolumeSafe(volume);
+    state = state.copyWith(currentVolume: volume, isFading: fading);
+  }
+
+  void _rememberMinutes(int minutes) {
+    if (minutes <= 0) return;
+    try {
+      unawaited(
+        ref.read(storageServiceProvider).setSleepTimerMinutes(minutes),
+      );
+    } catch (_) {
+      // Storage is unavailable in isolated tests; remembering is optional.
+    }
   }
 
   void _setVolumeSafe(double volume) {

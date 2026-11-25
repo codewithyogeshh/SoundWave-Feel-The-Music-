@@ -36,6 +36,7 @@ class LibraryStorageService {
   static const String _keyBatterySaver = 'sw_battery_saver';
   static const String _keyPauseOnLowBattery = 'sw_pause_on_low_battery';
   static const String _keyStopWhenSwipedAway = 'sw_stop_on_task_removed';
+  static const String _keySleepTimerMinutes = 'sw_sleep_timer_minutes';
 
   final SharedPreferences _prefs;
 
@@ -291,6 +292,16 @@ class LibraryStorageService {
 
   Future<void> setStopWhenSwipedAway(bool value) async {
     await _prefs.setBool(_keyStopWhenSwipedAway, value);
+  }
+
+  /// Sleep-timer length the user picked last, offered first next time.
+  int getSleepTimerMinutes() {
+    return _prefs.getInt(_keySleepTimerMinutes) ?? 30;
+  }
+
+  Future<void> setSleepTimerMinutes(int minutes) async {
+    if (minutes <= 0) return;
+    await _prefs.setInt(_keySleepTimerMinutes, minutes);
   }
 
   // --- USER PROFILE ---

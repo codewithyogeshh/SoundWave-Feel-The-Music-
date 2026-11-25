@@ -188,7 +188,12 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                 // Main Player Controls (Shuffle, Prev, Play/Pause, Next, Repeat)
                 _buildPlayerControls(playerState, activeTheme),
 
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
+
+                // Quick jump back 10s / forward 30s
+                _buildSeekRow(playerState),
+
+                const SizedBox(height: 10),
 
                 // Action Bar (Share, Favorite, Download, Playlist, Queue)
                 _buildActionsRow(context, song, isFav, activeTheme),
@@ -591,6 +596,69 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
             HapticFeedback.selectionClick();
             ref.read(playerProvider.notifier).cycleRepeatMode();
           },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSeekRow(PlayerState playerState) {
+    final position = playerState.position;
+    final duration = playerState.duration;
+    final canSeek = duration > Duration.zero;
+
+    Widget jumpButton({
+      required String label,
+      required Duration delta,
+      required String tooltip,
+    }) {
+      final maxMs = duration.inMilliseconds;
+      final target = Duration(
+        milliseconds: (position + delta).inMilliseconds.clamp(0, maxMs),
+      );
+      final enabled =
+          canSeek &&
+          (delta.isNegative ? position > Duration.zero : position < duration);
+
+      return Tooltip(
+        message: tooltip,
+        child: OutlinedButton(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: enabled ? Colors.white : AppColors.textMuted,
+            side: BorderSide(
+              color: Colors.white.withValues(alpha: enabled ? 0.22 : 0.08),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+            minimumSize: const Size(0, 34),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            shape: const StadiumBorder(),
+          ),
+          onPressed: enabled
+              ? () {
+                  HapticFeedback.selectionClick();
+                  ref.read(playerProvider.notifier).seek(target);
+                }
+              : null,
+          child: Text(
+            label,
+            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        jumpButton(
+          label: '−10s',
+          delta: const Duration(seconds: -10),
+          tooltip: 'Back 10 seconds',
+        ),
+        const SizedBox(width: 14),
+        jumpButton(
+          label: '+30s',
+          delta: const Duration(seconds: 30),
+          tooltip: 'Forward 30 seconds',
         ),
       ],
     );
@@ -1718,7 +1786,15 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
   }
 
   void _showSleepTimerSheet(BuildContext context, AppThemeType activeTheme) {
-    const presets = [5, 10, 15, 30, 45, 60, 90];
+    final presets = <int>[5, 10, 15, 30, 45, 60, 90];
+    // Offer the length picked last time first, so a nightly routine is one tap.
+    var lastMinutes = 30;
+    try {
+      lastMinutes = ref.read(storageServiceProvider).getSleepTimerMinutes();
+    } catch (_) {}
+    if (presets.remove(lastMinutes)) {
+      presets.insert(0, lastMinutes);
+    }
     showModalBottomSheet(
       context: context,
       backgroundColor: activeTheme.secondaryBackground,
@@ -1761,7 +1837,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                 const SizedBox(height: 6),
                 Text(
                   'Music will gently duck volume in the final 25s before cleanly pausing. '
-                  'Pick "End of song" to stop after the track that is playing now.',
+                  'Pick "End of song" to drift off over the last 15s of the track that is '
+                  'playing now. Last used: $lastMinutes min (shown first).',
                   style: AppTextStyles.subtitle.copyWith(fontSize: 12),
                 ),
                 const SizedBox(height: 16),
@@ -1798,9 +1875,10 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                     ...presets.map((mins) {
                     final isSelected =
                         timerState.isActive && timerState.totalMinutes == mins;
+                    final isLastUsed = mins == lastMinutes;
                     return ChoiceChip(
                       selected: isSelected,
-                      label: Text('$mins min'),
+                      label: Text(isLastUsed ? '$mins min ★' : '$mins min'),
                       selectedColor: activeTheme.primaryAccent,
                       backgroundColor: Colors.white.withValues(alpha: 0.06),
                       labelStyle: TextStyle(
