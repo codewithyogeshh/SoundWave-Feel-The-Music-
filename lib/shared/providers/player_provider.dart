@@ -8,6 +8,7 @@ import 'package:soundwave/core/constants/sample_music_data.dart';
 import 'package:soundwave/features/online/services/online_music_service.dart';
 import 'package:soundwave/features/player/models/song_model.dart';
 import 'package:soundwave/features/player/services/audio_handler.dart';
+import 'package:soundwave/features/player/services/queue_variety.dart';
 import 'package:soundwave/shared/providers/library_provider.dart';
 
 final audioHandlerProvider = Provider<SoundWaveAudioHandler>((ref) {
@@ -282,6 +283,14 @@ class PlayerNotifier extends Notifier<PlayerState> {
     var effectiveQueue = rawQueue
         .map((s) => s.id == trackToPlay.id ? trackToPlay : preferOfflineCopy(s))
         .toList();
+    // A search result list is full of jhankar/lo-fi copies of the same song.
+    // Drop the extra versions so the queue stays varied.
+    final rawLength = effectiveQueue.length;
+    effectiveQueue = QueueVariety.trimRepeats(
+      effectiveQueue,
+      currentId: trackToPlay.id,
+    );
+    final removedRepeats = rawLength - effectiveQueue.length;
     final targetIndex = effectiveQueue.indexWhere(
       (s) => s.id == trackToPlay.id,
     );
@@ -345,6 +354,42 @@ class PlayerNotifier extends Notifier<PlayerState> {
     if (requestId != _playRequestId || _isDisposed) return;
     _beginTrackConfirmation(trackToPlay);
     await _handler.loadQueue(effectiveQueue, initialIndex: initialIndex);
+
+    // The old copies were removed, so add songs of the same vibe to keep the
+    // music going instead of ending after two tracks.
+    if (removedRepeats > 0) {
+      unawaited(_topUpQueueWithSimilar(trackToPlay, requestId));
+    }
+  }
+
+  /// Adds a handful of songs that match the current track's vibe (same artist,
+  /// genre or mood) to the end of the queue, skipping anything already queued
+  /// or another version of the same song.
+  Future<void> _topUpQueueWithSimilar(SongModel seed, int requestId) async {
+    final similar = await QueueVariety.similarVibeSongs(seed);
+    if (_isDisposed || requestId != _playRequestId) return;
+
+    final existing = state.queue;
+    final additions = <SongModel>[];
+    for (final candidate in similar) {
+      if (additions.length >= 12) break;
+      if (existing.any((s) => s.id == candidate.id)) continue;
+      final currentId = state.currentSong?.id;
+      if (currentId != null && candidate.id == currentId) continue;
+      additions.add(candidate);
+    }
+    if (additions.isEmpty) return;
+
+    final newQueue = <SongModel>[...existing, ...additions];
+    final currentSong = state.currentSong;
+    final newIndex = currentSong == null
+        ? state.currentIndex
+        : newQueue.indexWhere((s) => s.id == currentSong.id);
+    final safeIndex = newIndex < 0 ? state.currentIndex : newIndex;
+
+    state = state.copyWith(queue: newQueue, currentIndex: safeIndex);
+    _beginTrackConfirmation(currentSong);
+    await _handler.updateSongQueue(newQueue, newIndex: safeIndex);
   }
 
   Future<void> pause() async {
@@ -454,9 +499,17 @@ class PlayerNotifier extends Notifier<PlayerState> {
       }
       if (_isDisposed || _userStartedPlayback) return;
 
+      // Saved queues from older builds may still hold ten versions of one
+      // song; keep the queue varied when it is restored on launch.
+      final restoredQueue = QueueVariety.trimRepeats(
+        session.queue,
+        currentId: song.id,
+      );
+      final restoredIndex = restoredQueue.indexWhere((s) => s.id == song.id);
+
       state = state.copyWith(
-        queue: session.queue,
-        currentIndex: index,
+        queue: restoredQueue,
+        currentIndex: restoredIndex >= 0 ? restoredIndex : 0,
         currentSong: song,
         position: session.position,
         duration: song.duration,

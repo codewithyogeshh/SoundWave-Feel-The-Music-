@@ -17,6 +17,7 @@ import 'package:soundwave/core/widgets/reveal.dart';
 import 'package:soundwave/features/online/widgets/download_options_sheet.dart';
 import 'package:soundwave/features/player/models/song_model.dart';
 import 'package:soundwave/features/player/presentation/widgets/lyrics_viewer.dart';
+import 'package:soundwave/features/player/services/queue_variety.dart';
 import 'package:soundwave/features/player/services/sleep_timer_service.dart';
 import 'package:soundwave/shared/providers/download_provider.dart';
 import 'package:soundwave/shared/providers/library_provider.dart';
@@ -1182,7 +1183,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
   ) {
     final queue = playerState.queue;
     final currentIndex = playerState.currentIndex;
-    final upcomingSongs = <SongModel>[];
+    var upcomingSongs = <SongModel>[];
 
     if (queue.isNotEmpty) {
       for (int i = currentIndex + 1; i < queue.length; i++) {
@@ -1196,6 +1197,12 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
         }
       }
     }
+
+    // Never list ten versions of the same song as "up next".
+    upcomingSongs = QueueVariety.trimRepeats(
+      upcomingSongs,
+      currentId: playerState.currentSong?.id,
+    );
 
     if (upcomingSongs.isEmpty) {
       return Container(
