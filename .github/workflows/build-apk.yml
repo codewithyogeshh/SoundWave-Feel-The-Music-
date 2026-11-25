@@ -93,6 +93,30 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      # Every APK must be signed with the SAME key, otherwise Android refuses
+      # to install an update over the installed app ("App not installed").
+      - name: Configure release signing
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.SOUNDWAVE_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.SOUNDWAVE_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.SOUNDWAVE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.SOUNDWAVE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${KEYSTORE_BASE64:-}" ]; then
+            echo "::warning::Signing secrets are missing, falling back to the debug keystore. In-app updates will not install over an existing app."
+            exit 0
+          fi
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > android/app/soundwave-release.jks
+          {
+            echo "storeFile=soundwave-release.jks"
+            echo "storePassword=$STORE_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "keyPassword=$KEY_PASSWORD"
+          } > android/key.properties
+          echo "Release signing configured."
+
       - name: Build release APK
         continue-on-error: true
         shell: bash
@@ -143,7 +167,7 @@ jobs:
 
             Notes:
             - This build was published automatically from the latest `main` branch.
-            - Release build signed with the debug keystore, so it installs directly on any phone.
+            - Every release is signed with the same key, so updating from an older SoundWave does **not** need an uninstall. Only v1.3.4 and older (debug-signed) builds need one last uninstall.
             - Downloads and local library scanning work on Android; the web build streams only.
           files: dist/*.apk
           fail_on_unmatched_files: true
