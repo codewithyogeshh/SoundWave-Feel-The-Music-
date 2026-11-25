@@ -24,23 +24,6 @@ class ProfileScreen extends ConsumerStatefulWidget {
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   String? _customUsername;
-  String _audioQuality = 'HD Lossless (320 kbps)';
-  bool _gapless = true;
-  bool _normalize = true;
-  bool _isInitialized = false;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (!_isInitialized) {
-      final storage = ref.read(storageServiceProvider);
-      final profile = storage.getUserProfile();
-      _audioQuality = (profile['audioQuality'] as String?) ?? 'HD Lossless (320 kbps)';
-      _gapless = (profile['gaplessPlayback'] as bool?) ?? true;
-      _normalize = (profile['normalizeVolume'] as bool?) ?? true;
-      _isInitialized = true;
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -54,6 +37,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final pauseOnUnplug = ref.watch(pauseOnHeadphoneUnplugProvider);
     final pauseOnLowBattery = ref.watch(pauseOnLowBatteryProvider);
     final stopWhenClosed = ref.watch(stopWhenAppClosedProvider);
+    final highQualityStreams = ref.watch(highQualityStreamProvider);
+    final lyricsCacheCount = storage.getCachedLyricsCount();
+    final lyricsCacheBytes = storage.getCachedLyricsBytes();
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -384,12 +370,30 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               Text('Audio & Playback Engine', style: AppTextStyles.sectionTitle.copyWith(fontSize: 16)),
               const SizedBox(height: 12),
 
-              _buildSettingsTile(
+              // Stream quality is real: JioSaavn's CDN serves the same track
+              // as 320 kbps or 160 kbps AAC, and this switch picks which one
+              // every newly resolved online track (stream or download) uses.
+              _buildSwitchTile(
                 icon: Icons.high_quality_rounded,
-                title: 'Audio Output Quality',
-                subtitle: _audioQuality,
+                title: 'High-Quality Streaming',
+                subtitle: highQualityStreams
+                    ? 'Stream and download at 320 kbps'
+                    : 'Data saver: 160 kbps, uses less mobile data',
                 iconColor: currentTheme.primaryAccent,
-                onTap: () => _showQualityPicker(context, storage, profile),
+                value: highQualityStreams,
+                onChanged: (val) {
+                  ref.read(highQualityStreamProvider.notifier).setEnabled(val);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        val
+                            ? 'Streaming in 320 kbps'
+                            : 'Data saver on — streaming in 160 kbps',
+                      ),
+                      duration: const Duration(seconds: 1),
+                    ),
+                  );
+                },
               ),
               const SizedBox(height: 10),
 
@@ -402,48 +406,27 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ),
               const SizedBox(height: 10),
 
-              // Gapless Toggle
-              _buildSwitchTile(
-                icon: Icons.all_inclusive_rounded,
-                title: 'Gapless Playback',
-                subtitle: 'Zero delay between queued tracks',
-                iconColor: currentTheme.primaryAccent,
-                value: _gapless,
-                onChanged: (val) {
-                  setState(() => _gapless = val);
-                  final updated = Map<String, dynamic>.from(profile);
-                  updated['gaplessPlayback'] = val;
-                  storage.saveUserProfile(updated);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(val ? 'Gapless playback enabled' : 'Gapless playback disabled'),
-                      duration: const Duration(seconds: 1),
-                    ),
-                  );
-                },
+              _buildSettingsTile(
+                icon: Icons.lyrics_rounded,
+                title: 'Offline Lyrics Cache',
+                subtitle: lyricsCacheCount == 0
+                    ? 'No saved lyrics yet'
+                    : '$lyricsCacheCount '
+                          '${lyricsCacheCount == 1 ? 'song' : 'songs'} • '
+                          '${_formatBytes(lyricsCacheBytes)}',
+                iconColor: currentTheme.highlightColor,
+                onTap: () => _confirmClearLyrics(storage),
               ),
               const SizedBox(height: 10),
 
-              // Volume Normalization Toggle
-              _buildSwitchTile(
-                icon: Icons.volume_up_rounded,
-                title: 'Volume Normalization',
-                subtitle: 'Equalize volume levels across different albums',
-                iconColor: currentTheme.highlightColor,
-                value: _normalize,
-                onChanged: (val) {
-                  setState(() => _normalize = val);
-                  final updated = Map<String, dynamic>.from(profile);
-                  updated['normalizeVolume'] = val;
-                  storage.saveUserProfile(updated);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(val ? 'Volume normalization enabled' : 'Volume normalization disabled'),
-                      duration: const Duration(seconds: 1),
-                    ),
-                  );
-                },
+              _buildSettingsTile(
+                icon: Icons.download_for_offline_rounded,
+                title: 'Downloads & Storage',
+                subtitle: 'Offline audio, storage used, batch delete',
+                iconColor: currentTheme.secondaryAccent,
+                onTap: () => context.push('/downloads'),
               ),
+              const SizedBox(height: 10),
 
               const SizedBox(height: 26),
 
@@ -1014,66 +997,61 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  void _showQualityPicker(
-    BuildContext context,
-    LibraryStorageService storage,
-    Map<String, dynamic> profile,
-  ) {
-    final options = [
-      'Standard (128 kbps MP3)',
-      'High Quality (256 kbps AAC)',
-      'HD Lossless (320 kbps)',
-      'Ultra Hi-Res (24-bit / 96kHz FLAC)',
-    ];
+  Future<void> _confirmClearLyrics(LibraryStorageService storage) async {
+    final count = storage.getCachedLyricsCount();
+    if (count == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No saved lyrics to clear')),
+      );
+      return;
+    }
 
     final activeTheme = ref.read(themeProvider);
-    showModalBottomSheet(
+    final confirmed = await showDialog<bool>(
       context: context,
-      backgroundColor: activeTheme.secondaryBackground,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Select Audio Quality', style: AppTextStyles.cardTitle),
-                const SizedBox(height: 12),
-                ...options.map((opt) {
-                  final isSelected = opt == _audioQuality;
-                  return ListTile(
-                    title: Text(
-                      opt,
-                      style: TextStyle(
-                        color: isSelected ? activeTheme.primaryAccent : Colors.white,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                      ),
-                    ),
-                    trailing: isSelected
-                        ? Icon(Icons.check_circle_rounded, color: activeTheme.primaryAccent)
-                        : null,
-                    onTap: () {
-                      setState(() => _audioQuality = opt);
-                      final updated = Map<String, dynamic>.from(profile);
-                      updated['audioQuality'] = opt;
-                      storage.saveUserProfile(updated);
-                      Navigator.pop(ctx);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Audio quality updated to: $opt')),
-                      );
-                    },
-                  );
-                }),
-              ],
+      builder: (ctx) => AlertDialog(
+        backgroundColor: activeTheme.secondaryBackground,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(22),
+        ),
+        title: const Text('Clear offline lyrics?'),
+        content: Text(
+          'This removes $count saved '
+          '${count == 1 ? 'song' : 'songs'} of lyrics from this device. '
+          'They download again the next time you open a song online.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(
+              'Clear',
+              style: TextStyle(color: activeTheme.highlightColor),
             ),
           ),
-        );
-      },
+        ],
+      ),
     );
+    if (confirmed != true) return;
+
+    await storage.clearCachedLyrics();
+    if (!mounted) return;
+    setState(() {});
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Saved lyrics cleared')),
+    );
+  }
+
+  String _formatBytes(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) {
+      final kb = bytes / 1024;
+      return '${kb.toStringAsFixed(kb < 10 ? 1 : 0)} KB';
+    }
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 
   Future<void> _shareApp(BuildContext context) async {
