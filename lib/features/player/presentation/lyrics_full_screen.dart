@@ -5,6 +5,7 @@ import 'package:soundwave/app/theme/text_styles.dart';
 import 'package:soundwave/core/utils/duration_formatter.dart';
 import 'package:soundwave/core/widgets/app_background.dart';
 import 'package:soundwave/features/player/presentation/widgets/lyrics_viewer.dart';
+import 'package:soundwave/features/player/services/lyrics_service.dart';
 import 'package:soundwave/shared/providers/player_provider.dart';
 import 'package:soundwave/shared/providers/theme_provider.dart';
 
@@ -24,6 +25,10 @@ class _LyricsFullScreenState extends ConsumerState<LyricsFullScreen> {
   Widget build(BuildContext context) {
     final playerState = ref.watch(playerProvider);
     final activeTheme = ref.watch(themeProvider);
+    final fromCache = ref.watch(lyricsFromCacheProvider);
+    final loadedLyrics = ref.watch(currentSongLyricsProvider).asData?.value;
+    final plainOnly =
+        loadedLyrics != null && loadedLyrics.isNotEmpty && !loadedLyrics.isSynced;
     final song = playerState.currentSong;
 
     if (song == null) {
@@ -81,14 +86,31 @@ class _LyricsFullScreenState extends ConsumerState<LyricsFullScreen> {
                         color: activeTheme.primaryAccent.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Text(
-                        'LYRICS',
-                        style: TextStyle(
-                          color: activeTheme.primaryAccent,
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1,
-                        ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (fromCache) ...[
+                            Icon(
+                              Icons.offline_pin_rounded,
+                              size: 10,
+                              color: activeTheme.primaryAccent,
+                            ),
+                            const SizedBox(width: 3),
+                          ],
+                          Text(
+                            plainOnly
+                                ? 'LYRICS • NO TIMING'
+                                : fromCache
+                                ? 'LYRICS • SAVED'
+                                : 'LYRICS',
+                            style: TextStyle(
+                              color: activeTheme.primaryAccent,
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -108,6 +130,9 @@ class _LyricsFullScreenState extends ConsumerState<LyricsFullScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    // Fine-tune karaoke timing without leaving the lyrics.
+                    const LyricsSyncControls(),
+                    const SizedBox(height: 2),
                     SliderTheme(
                       data: SliderTheme.of(context).copyWith(
                         trackHeight: 3,
