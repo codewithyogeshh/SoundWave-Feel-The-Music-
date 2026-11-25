@@ -31,6 +31,7 @@ class LibraryStorageService {
   static const String _keyLastIndex = 'sw_last_index';
   static const String _keyLastPositionMs = 'sw_last_position_ms';
   static const String _keyPlaybackSpeed = 'sw_playback_speed';
+  static const String _keyListenedSeconds = 'sw_stats_listened_seconds';
 
   final SharedPreferences _prefs;
 
@@ -236,6 +237,19 @@ class LibraryStorageService {
   Future<void> incrementTotalSongsPlayed() async {
     final current = getTotalSongsPlayed();
     await _prefs.setInt(_keyTotalSongsPlayed, current + 1);
+  }
+
+  /// Total time music has actually been playing, kept across launches.
+  int getListenedSeconds() {
+    return _prefs.getInt(_keyListenedSeconds) ?? 0;
+  }
+
+  Future<void> addListenedSeconds(int seconds) async {
+    if (seconds <= 0) return;
+    await _prefs.setInt(
+      _keyListenedSeconds,
+      getListenedSeconds() + seconds,
+    );
   }
 
   // --- USER PROFILE ---

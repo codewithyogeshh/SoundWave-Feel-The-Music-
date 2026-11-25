@@ -81,6 +81,10 @@ class PlayerNotifier extends Notifier<PlayerState> {
   Timer? _sessionSaveTimer;
   String? _lastSavedSignature;
 
+  // Actual listening time, accrued while the music is really playing.
+  int _listenedBufferMs = 0;
+  Duration _lastListenedPosition = Duration.zero;
+
   /// Where playback should start when the restored song is played again.
   Duration? _resumePosition;
 
@@ -98,6 +102,7 @@ class PlayerNotifier extends Notifier<PlayerState> {
       ++_playRequestId;
       _sessionSaveTimer?.cancel();
       unawaited(_saveSession(force: true));
+      unawaited(_flushListenedTime());
       _playbackSub?.cancel();
       _mediaSub?.cancel();
       _posSub?.cancel();
@@ -166,6 +171,7 @@ class PlayerNotifier extends Notifier<PlayerState> {
 
     _posSub = _handler.player.positionStream.listen((pos) {
       if (_isDisposed) return;
+      _accrueListenedTime(pos);
       state = state.copyWith(position: pos);
       _scheduleSessionSave();
     });
@@ -478,6 +484,32 @@ class PlayerNotifier extends Notifier<PlayerState> {
       _sessionSaveTimer = null;
       unawaited(_saveSession());
     });
+  }
+
+  /// Counts forward playback progress as real listening time. Seeks and
+  /// track changes are skipped, and writes are batched to spare flash storage.
+  void _accrueListenedTime(Duration position) {
+    final delta = position - _lastListenedPosition;
+    _lastListenedPosition = position;
+    if (!state.isPlaying) return;
+    if (delta <= Duration.zero || delta > const Duration(seconds: 2)) return;
+    _listenedBufferMs += delta.inMilliseconds;
+    if (_listenedBufferMs >= 10000) {
+      unawaited(_flushListenedTime());
+    }
+  }
+
+  Future<void> _flushListenedTime() async {
+    final ms = _listenedBufferMs;
+    if (ms < 1000) return;
+    _listenedBufferMs = 0;
+    try {
+      await ref
+          .read(storageServiceProvider)
+          .addListenedSeconds(ms ~/ 1000);
+    } catch (_) {
+      // Storage is not available yet (or in isolated tests).
+    }
   }
 
   Future<void> _saveSession({bool force = false}) async {

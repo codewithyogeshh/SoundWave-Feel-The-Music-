@@ -207,6 +207,15 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                               queue: pl.songs,
                             );
                       }
+                    } else if (val == 'shuffle') {
+                      if (pl.songs.isNotEmpty) {
+                        final shuffled = List<SongModel>.of(pl.songs)
+                          ..shuffle();
+                        ref.read(playerProvider.notifier).playTrack(
+                              shuffled.first,
+                              queue: shuffled,
+                            );
+                      }
                     } else if (val == 'rename') {
                       _showRenamePlaylistDialog(context, pl);
                     } else if (val == 'delete') {
@@ -221,6 +230,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                           Icon(Icons.play_arrow_rounded, color: AppColors.neonBlue, size: 20),
                           SizedBox(width: 10),
                           Text('Play All', style: TextStyle(color: Colors.white, fontSize: 13)),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'shuffle',
+                      child: Row(
+                        children: [
+                          Icon(Icons.shuffle_rounded, color: AppColors.purple, size: 18),
+                          SizedBox(width: 10),
+                          Text('Shuffle Play', style: TextStyle(color: Colors.white, fontSize: 13)),
                         ],
                       ),
                     ),

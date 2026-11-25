@@ -242,6 +242,36 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ],
               ),
 
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildStatCard(
+                      icon: Icons.timer_rounded,
+                      value: _formatListeningTime(storage.getListenedSeconds()),
+                      label: 'Listening Time',
+                      gradient: currentTheme.accentGradient,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildStatCard(
+                      icon: Icons.star_rounded,
+                      value: _topArtist(libState.recentlyPlayedSongs),
+                      label: 'Top Artist',
+                      gradient: currentTheme.primaryGradient,
+                      onTap: () => _showSongListSheet(
+                        context,
+                        title: 'Recently Played Tracks',
+                        icon: Icons.play_circle_fill_rounded,
+                        songs: libState.recentlyPlayedSongs,
+                        theme: currentTheme,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
               const SizedBox(height: 26),
 
               // Theme Selector Section
@@ -488,6 +518,30 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
+  /// 42s → "42s", 12m → "12m", 3h 07m → "3h 7m".
+  String _formatListeningTime(int seconds) {
+    if (seconds < 60) return '${seconds}s';
+    final hours = seconds ~/ 3600;
+    final minutes = (seconds % 3600) ~/ 60;
+    if (hours > 0) return '${hours}h ${minutes}m';
+    return '${minutes}m';
+  }
+
+  /// Artist that appears most often in the listening history.
+  String _topArtist(List<SongModel> songs) {
+    if (songs.isEmpty) return '—';
+    final counts = <String, int>{};
+    for (final song in songs) {
+      final artist = song.artist.trim();
+      if (artist.isEmpty) continue;
+      counts[artist] = (counts[artist] ?? 0) + 1;
+    }
+    if (counts.isEmpty) return '—';
+    return counts.entries
+        .reduce((a, b) => b.value > a.value ? b : a)
+        .key;
+  }
+
   Widget _buildStatCard({
     required IconData icon,
     required String value,
@@ -518,6 +572,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               children: [
                 Text(
                   value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.cardTitle.copyWith(fontSize: 18),
                 ),
                 Text(

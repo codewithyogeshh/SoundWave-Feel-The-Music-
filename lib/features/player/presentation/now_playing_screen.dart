@@ -261,7 +261,9 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                           Icon(Icons.timer_rounded, size: 11, color: activeTheme.primaryAccent),
                           const SizedBox(width: 4),
                           Text(
-                            DurationFormatter.format(sleepTimer.remaining),
+                            sleepTimer.mode == SleepTimerMode.endOfTrack
+                                ? 'End of song'
+                                : DurationFormatter.format(sleepTimer.remaining),
                             style: TextStyle(
                               color: activeTheme.primaryAccent,
                               fontSize: 10.5,
@@ -1623,7 +1625,9 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                   title: Text('Sleep Timer & Fade-Out', style: AppTextStyles.songTitle.copyWith(fontSize: 15)),
                   subtitle: Text(
                     sleepTimer.isActive
-                        ? 'Pausing in ${DurationFormatter.format(sleepTimer.remaining)}'
+                        ? (sleepTimer.mode == SleepTimerMode.endOfTrack
+                            ? 'Pausing after the current song'
+                            : 'Pausing in ${DurationFormatter.format(sleepTimer.remaining)}')
                         : 'Gradually duck volume before pausing',
                     style: AppTextStyles.subtitle.copyWith(fontSize: 12),
                   ),
@@ -1742,7 +1746,9 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          DurationFormatter.format(timerState.remaining),
+                          timerState.mode == SleepTimerMode.endOfTrack
+                              ? 'End of song'
+                              : DurationFormatter.format(timerState.remaining),
                           style: TextStyle(
                             color: activeTheme.primaryAccent,
                             fontSize: 14,
@@ -1754,14 +1760,42 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Music will gently duck volume in the final 25s before cleanly pausing.',
+                  'Music will gently duck volume in the final 25s before cleanly pausing. '
+                  'Pick "End of song" to stop after the track that is playing now.',
                   style: AppTextStyles.subtitle.copyWith(fontSize: 12),
                 ),
                 const SizedBox(height: 16),
                 Wrap(
                   spacing: 10,
                   runSpacing: 10,
-                  children: presets.map((mins) {
+                  children: [
+                    ChoiceChip(
+                      selected:
+                          timerState.isActive &&
+                          timerState.mode == SleepTimerMode.endOfTrack,
+                      label: const Text('End of song'),
+                      selectedColor: activeTheme.primaryAccent,
+                      backgroundColor: Colors.white.withValues(alpha: 0.06),
+                      labelStyle: TextStyle(
+                        color: timerState.mode == SleepTimerMode.endOfTrack
+                            ? Colors.white
+                            : AppColors.textSecondary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      onSelected: (_) {
+                        HapticFeedback.selectionClick();
+                        ref.read(sleepTimerProvider.notifier).startEndOfTrack();
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Sleep timer: pausing after the current song',
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    ...presets.map((mins) {
                     final isSelected =
                         timerState.isActive && timerState.totalMinutes == mins;
                     return ChoiceChip(
@@ -1784,7 +1818,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                         );
                       },
                     );
-                  }).toList(),
+                  }),
+                  ],
                 ),
                 if (timerState.isActive) ...[
                   const SizedBox(height: 16),
