@@ -4,6 +4,19 @@ import 'package:soundwave/core/constants/sample_music_data.dart';
 import 'package:soundwave/features/library/models/playlist_model.dart';
 import 'package:soundwave/features/player/models/song_model.dart';
 
+/// Queue + position captured when the app last saved its playback state.
+class SavedPlaybackSession {
+  final List<SongModel> queue;
+  final int index;
+  final Duration position;
+
+  const SavedPlaybackSession({
+    required this.queue,
+    required this.index,
+    required this.position,
+  });
+}
+
 class LibraryStorageService {
   static const String _keyPlaylists = 'sw_playlists';
   static const String _keyFavorites = 'sw_favorites';
@@ -14,6 +27,10 @@ class LibraryStorageService {
   static const String _keyAudioPrompted = 'sw_audio_prompted';
   static const String _keyLocalSongs = 'sw_local_songs_cache';
   static const String _keyDownloadedSongs = 'sw_downloaded_songs';
+  static const String _keyLastQueue = 'sw_last_queue';
+  static const String _keyLastIndex = 'sw_last_index';
+  static const String _keyLastPositionMs = 'sw_last_position_ms';
+  static const String _keyPlaybackSpeed = 'sw_playback_speed';
 
   final SharedPreferences _prefs;
 
@@ -73,6 +90,59 @@ class LibraryStorageService {
     await _prefs.setStringList(_keyLocalSongs, raw);
   }
 
+  // --- LAST PLAYBACK SESSION (resume where the user left off) ---
+  SavedPlaybackSession? getPlaybackSession() {
+    final raw = _prefs.getStringList(_keyLastQueue);
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      final songs = raw.map((s) => SongModel.fromJson(s)).toList();
+      if (songs.isEmpty) return null;
+      final index = (_prefs.getInt(_keyLastIndex) ?? 0).clamp(
+        0,
+        songs.length - 1,
+      );
+      final positionMs = _prefs.getInt(_keyLastPositionMs) ?? 0;
+      return SavedPlaybackSession(
+        queue: songs,
+        index: index,
+        position: Duration(milliseconds: positionMs < 0 ? 0 : positionMs),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> savePlaybackSession({
+    required List<SongModel> queue,
+    required int index,
+    required Duration position,
+  }) async {
+    if (queue.isEmpty) return;
+    final safeIndex = index.clamp(0, queue.length - 1);
+    await _prefs.setStringList(
+      _keyLastQueue,
+      queue.map((s) => s.toJson()).toList(),
+    );
+    await _prefs.setInt(_keyLastIndex, safeIndex);
+    await _prefs.setInt(_keyLastPositionMs, position.inMilliseconds);
+  }
+
+  Future<void> clearPlaybackSession() async {
+    await _prefs.remove(_keyLastQueue);
+    await _prefs.remove(_keyLastIndex);
+    await _prefs.remove(_keyLastPositionMs);
+  }
+
+  // --- PLAYBACK SPEED ---
+  double getPlaybackSpeed() {
+    final speed = _prefs.getDouble(_keyPlaybackSpeed) ?? 1.0;
+    return speed.clamp(0.5, 2.5);
+  }
+
+  Future<void> savePlaybackSpeed(double speed) async {
+    await _prefs.setDouble(_keyPlaybackSpeed, speed.clamp(0.5, 2.5));
+  }
+
   // --- PLAYLISTS ---
   List<PlaylistModel> getPlaylists() {
     final raw = _prefs.getStringList(_keyPlaylists);
@@ -82,13 +152,18 @@ class LibraryStorageService {
       return initial;
     }
     try {
-      final loaded = raw.map((jsonStr) => PlaylistModel.fromJson(jsonStr)).toList();
+      final loaded = raw
+          .map((jsonStr) => PlaylistModel.fromJson(jsonStr))
+          .toList();
       // Purge any legacy dummy playlists from earlier builds
-      final cleaned = loaded.where((p) =>
-        p.id == 'pl_my_downloads' ||
-        p.id == 'pl_my_favorites' ||
-        p.isCustom
-      ).toList();
+      final cleaned = loaded
+          .where(
+            (p) =>
+                p.id == 'pl_my_downloads' ||
+                p.id == 'pl_my_favorites' ||
+                p.isCustom,
+          )
+          .toList();
 
       if (cleaned.isEmpty) {
         final initial = SampleMusicData.initialPlaylists;
