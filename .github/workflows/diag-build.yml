@@ -19,15 +19,19 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-      - name: Build debug APK and save the error
+      - name: Build release APK and save the error
         run: |
           flutter pub get > /tmp/pub.log 2>&1 || true
-          flutter build apk --debug > /tmp/build.log 2>&1 || true
+          flutter build apk --release > /tmp/build.log 2>&1 || true
           {
+            echo "=== disk ==="
+            df -h / | tail -1
+            echo "=== apks found ==="
+            find build -name "*.apk" 2>/dev/null | head -5
             echo "=== errors ==="
-            grep -nE "^e: |error:|Error:|FAILURE|What went wrong|Caused by|Unresolved|expecting|Execution failed" /tmp/build.log | tail -60
-            echo "=== last 60 lines ==="
-            tail -60 /tmp/build.log
+            grep -nE "^e: |error:|Error:|FAILURE|What went wrong|Caused by|Execution failed|No space|OutOfMemory|Killed" /tmp/build.log | tail -40
+            echo "=== last 80 lines ==="
+            tail -80 /tmp/build.log
           } > diag-build-error.txt
           echo "captured $(wc -l < diag-build-error.txt) lines"
       - name: Publish the error to a branch
@@ -38,5 +42,5 @@ jobs:
           git config user.email "yogeshbhai0755@gmail.com"
           git checkout -B diag
           git add -f diag-build-error.txt
-          git commit -m "chore: capture widget build error" || true
+          git commit -m "chore: capture release build error" || true
           git push -f origin diag
