@@ -159,6 +159,23 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
           ? _currentQueue[_currentIndex]
           : null;
 
+  /// The song a skip would start next, without touching playback. It follows
+  /// the same rules as [skipToNext] (shuffle order and repeat-all), so the home
+  /// widget can preview it even when the order only lives in the engine.
+  SongModel? get upcomingSong {
+    if (_disposed || _currentQueue.isEmpty) return null;
+    if (_isShuffle) {
+      if (_shuffledIndices.length != _currentQueue.length) return null;
+      if (_shuffledIndices.length < 2) return null;
+      final nextIndex = _shuffledIndices[(_shufflePointer + 1) % _shuffledIndices.length];
+      if (nextIndex < 0 || nextIndex >= _currentQueue.length) return null;
+      return _currentQueue[nextIndex];
+    }
+    if (hasNext) return _currentQueue[_currentIndex + 1];
+    if (_repeatMode == AudioServiceRepeatMode.all) return _currentQueue.first;
+    return null;
+  }
+
   void _disposePreviousInstance() {
     if (_disposed) return;
     _disposed = true;

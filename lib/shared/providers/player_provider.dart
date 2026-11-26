@@ -484,6 +484,10 @@ class PlayerNotifier extends Notifier<PlayerState> {
     }
   }
 
+  /// Title of the song a skip would play next, shuffle order included, so the
+  /// home widget can show the real "Next" even while shuffling.
+  String? get upcomingSongTitle => _handler.upcomingSong?.title;
+
   Future<void> toggleShuffle() async {
     await _handler.toggleShuffle();
     state = state.copyWith(isShuffle: !state.isShuffle);

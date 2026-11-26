@@ -136,15 +136,13 @@ class _SoundWaveAppState extends ConsumerState<SoundWaveApp> {
     );
   }
 
-  /// Title of the song the queue plays next, so the widget can show it.
-  /// Shuffle order lives inside the audio engine, so it is skipped there
-  /// instead of showing a wrong title.
+  /// Title of the song the queue plays next, so the widget can show it. The
+  /// shuffle order lives inside the audio engine, which answers with the song a
+  /// skip would really start, so the line stays useful while shuffling.
   String? _nextSongTitle() {
     final playerState = ref.read(playerProvider);
-    if (playerState.currentSong == null || playerState.isShuffle) return null;
-    final next = playerState.currentIndex + 1;
-    if (next < 0 || next >= playerState.queue.length) return null;
-    return playerState.queue[next].title;
+    if (playerState.currentSong == null) return null;
+    return ref.read(playerProvider.notifier).upcomingSongTitle;
   }
 
   void _syncHomeWidget() {
