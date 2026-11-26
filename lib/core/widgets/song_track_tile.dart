@@ -199,10 +199,19 @@ class SongTrackTile extends ConsumerWidget {
               ),
               onSelected: (val) {
                 if (val == 'play_next') {
-                  ref.read(playerProvider.notifier).playTrack(song, queue: [song, ...playlist]);
+                  ref.read(playerProvider.notifier).playNextInQueue(song);
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text('Playing next: "${song.title}"'),
+                      backgroundColor: AppColors.secondaryBackground,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                } else if (val == 'add_to_queue') {
+                  ref.read(playerProvider.notifier).addToQueue(song);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Added to queue: "${song.title}"'),
                       backgroundColor: AppColors.secondaryBackground,
                       behavior: SnackBarBehavior.floating,
                     ),
@@ -229,6 +238,16 @@ class SongTrackTile extends ConsumerWidget {
                       Icon(Icons.queue_play_next_rounded, color: AppColors.neonBlue, size: 18),
                       SizedBox(width: 10),
                       Text('Play Next', style: TextStyle(color: Colors.white, fontSize: 13)),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'add_to_queue',
+                  child: Row(
+                    children: [
+                      Icon(Icons.playlist_add_rounded, color: AppColors.neonBlue, size: 18),
+                      SizedBox(width: 10),
+                      Text('Add to Queue', style: TextStyle(color: Colors.white, fontSize: 13)),
                     ],
                   ),
                 ),

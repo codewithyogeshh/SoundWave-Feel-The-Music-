@@ -837,6 +837,44 @@ void main() {
       expect(container.read(playerProvider).queue.first.id, 's_a');
     });
 
+    test('PlayerNotifier plays a song next and appends to the queue', () async {
+      final mockHandler = _RecordingAudioHandler();
+      final container = ProviderContainer(
+        overrides: [
+          audioHandlerProvider.overrideWithValue(mockHandler),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      const songA = SongModel(id: 's_a', title: 'Song A', artist: 'Artist A', duration: Duration(minutes: 3), audioPath: '/a.mp3');
+      const songB = SongModel(id: 's_b', title: 'Song B', artist: 'Artist B', duration: Duration(minutes: 3), audioPath: '/b.mp3');
+      const songC = SongModel(id: 's_c', title: 'Song C', artist: 'Artist C', duration: Duration(minutes: 3), audioPath: '/c.mp3');
+      const songD = SongModel(id: 's_d', title: 'Song D', artist: 'Artist D', duration: Duration(minutes: 3), audioPath: '/d.mp3');
+      const songE = SongModel(id: 's_e', title: 'Song E', artist: 'Artist E', duration: Duration(minutes: 3), audioPath: '/e.mp3');
+
+      final notifier = container.read(playerProvider.notifier);
+      await notifier.playTrack(songA, queue: [songA, songB, songC]);
+      List<String> ids() =>
+          container.read(playerProvider).queue.map((s) => s.id).toList();
+
+      await notifier.playNextInQueue(songD);
+      expect(ids(), ['s_a', 's_d', 's_b', 's_c']);
+      expect(container.read(playerProvider).currentSong?.id, 's_a');
+      expect(container.read(playerProvider).currentIndex, 0);
+
+      // Tapping play-next twice must not queue two copies.
+      await notifier.playNextInQueue(songD);
+      expect(ids(), ['s_a', 's_d', 's_b', 's_c']);
+
+      // A song already waiting later is not added twice.
+      await notifier.addToQueue(songB);
+      expect(ids(), ['s_a', 's_d', 's_b', 's_c']);
+
+      await notifier.addToQueue(songE);
+      expect(ids(), ['s_a', 's_d', 's_b', 's_c', 's_e']);
+      expect(container.read(playerProvider).currentSong?.id, 's_a');
+    });
+
     test('SleepTimerNotifier supports adding minutes and cancelling cleanly', () {
       final mockHandler = _RecordingAudioHandler();
       final container = ProviderContainer(

@@ -770,6 +770,58 @@ class PlayerNotifier extends Notifier<PlayerState> {
     _beginTrackConfirmation(current);
     await _handler.clearUpcomingQueue();
   }
+
+  /// Puts [song] straight after the track that is playing, keeping the rest of
+  /// the queue untouched, so it plays next instead of starting a new queue.
+  Future<void> playNextInQueue(SongModel song) async {
+    final current = state.currentSong;
+    if (current == null || state.queue.isEmpty) {
+      await playTrack(song);
+      return;
+    }
+
+    final newQueue = List<SongModel>.from(state.queue);
+    final currentIdx = newQueue.indexWhere((s) => s.id == current.id);
+    final baseIdx = currentIdx < 0 ? state.currentIndex : currentIdx;
+    final insertAt = (baseIdx + 1).clamp(0, newQueue.length);
+
+    // Tapping it twice should not leave two copies back to back.
+    if (insertAt < newQueue.length && newQueue[insertAt].id == song.id) return;
+
+    // A song already waiting further down moves up instead of duplicating.
+    if (song.id != current.id) {
+      newQueue.removeWhere((s) => s.id == song.id);
+    }
+    final afterCurrent = newQueue.indexWhere((s) => s.id == current.id);
+    final safeInsert = ((afterCurrent < 0 ? 0 : afterCurrent) + 1)
+        .clamp(0, newQueue.length);
+    newQueue.insert(safeInsert, song);
+
+    final newIndex = newQueue.indexWhere((s) => s.id == current.id);
+    state = state.copyWith(
+      queue: newQueue,
+      currentIndex: newIndex < 0 ? 0 : newIndex,
+    );
+
+    _beginTrackConfirmation(current);
+    await _handler.updateSongQueue(newQueue, newIndex: state.currentIndex);
+  }
+
+  /// Adds [song] to the end of the queue without disturbing the current song.
+  Future<void> addToQueue(SongModel song) async {
+    final current = state.currentSong;
+    if (current == null || state.queue.isEmpty) {
+      await playTrack(song);
+      return;
+    }
+    if (state.queue.any((s) => s.id == song.id)) return;
+
+    final newQueue = <SongModel>[...state.queue, song];
+    state = state.copyWith(queue: newQueue);
+
+    _beginTrackConfirmation(current);
+    await _handler.updateSongQueue(newQueue, newIndex: state.currentIndex);
+  }
 }
 
 final playerProvider = NotifierProvider<PlayerNotifier, PlayerState>(
