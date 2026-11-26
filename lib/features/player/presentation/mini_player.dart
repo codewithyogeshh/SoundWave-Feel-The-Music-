@@ -47,11 +47,33 @@ class MiniPlayer extends ConsumerWidget {
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         child: GlassCard(
-          borderRadius: 20,
+          borderRadius: 24,
           blur: 24,
-          color: activeTheme.secondaryBackground.withValues(alpha: 0.86),
-          borderColor: activeTheme.primaryAccent.withValues(alpha: 0.3),
-          padding: const EdgeInsets.only(left: 10, right: 12, top: 10, bottom: 8),
+          color: activeTheme.secondaryBackground.withValues(alpha: 0.9),
+          // Lifted, saturated wash so the bar reads like the home-screen widget
+          // instead of blending into the page behind it.
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              activeTheme.primaryAccent.withValues(alpha: 0.42),
+              activeTheme.highlightColor.withValues(alpha: 0.22),
+            ],
+          ),
+          borderColor: activeTheme.highlightColor.withValues(alpha: 0.5),
+          shadows: [
+            BoxShadow(
+              color: activeTheme.primaryAccent.withValues(alpha: 0.3),
+              blurRadius: 22,
+              offset: const Offset(0, 8),
+            ),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.28),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+          padding: const EdgeInsets.only(left: 12, right: 12, top: 11, bottom: 10),
           onTap: () {
             Navigator.of(context).push(
               PageRouteBuilder(
@@ -85,20 +107,37 @@ class MiniPlayer extends ConsumerWidget {
             children: [
               Row(
                 children: [
-                  // Artwork thumbnail
+                  // Round cover with a glowing ring, like the launcher widget.
                   Hero(
                     tag: 'album_art_${song.id}',
-                    child: AlbumArtwork(
-                      size: 48,
-                      borderRadius: 14,
-                      artworkUrl: song.artworkPath,
-                      albumId: song.albumId,
-                      songId: song.rawId,
-                      songTitle: song.title,
-                      songArtist: song.artist,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: activeTheme.highlightColor.withValues(alpha: 0.7),
+                          width: 1.6,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: activeTheme.primaryAccent.withValues(alpha: 0.4),
+                            blurRadius: 18,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
+                      child: AlbumArtwork(
+                        size: 54,
+                        borderRadius: 27,
+                        artworkUrl: song.artworkPath,
+                        albumId: song.albumId,
+                        songId: song.rawId,
+                        songTitle: song.title,
+                        songArtist: song.artist,
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 13),
                   // Song Title & Artist
                   Expanded(
                     child: Column(
@@ -109,9 +148,13 @@ class MiniPlayer extends ConsumerWidget {
                           song.title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: AppTextStyles.songTitle.copyWith(fontSize: 14),
+                          style: AppTextStyles.songTitle.copyWith(
+                            fontSize: 16.5,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.2,
+                          ),
                         ),
-                        const SizedBox(height: 2),
+                        const SizedBox(height: 3),
                         Row(
                           children: [
                             Flexible(
@@ -119,7 +162,10 @@ class MiniPlayer extends ConsumerWidget {
                                 song.artist,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: AppTextStyles.artistName.copyWith(fontSize: 12),
+                                style: AppTextStyles.artistName.copyWith(
+                                  fontSize: 13,
+                                  color: Colors.white.withValues(alpha: 0.82),
+                                ),
                               ),
                             ),
                             if (playerState.isPlaying) ...[
@@ -161,7 +207,7 @@ class MiniPlayer extends ConsumerWidget {
                   ),
                   // Play / Pause Circle with morph animation
                   GradientButton.circle(
-                    size: 42,
+                    size: 46,
                     gradient: activeTheme.accentGradient,
                     glowColor: activeTheme.primaryAccent,
                     onPressed: () {
@@ -185,15 +231,37 @@ class MiniPlayer extends ConsumerWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
-              // Glowing progress bar at bottom of mini player
-              ClipRRect(
-                borderRadius: BorderRadius.circular(2),
-                child: LinearProgressIndicator(
-                  value: progress,
-                  minHeight: 2.5,
-                  backgroundColor: Colors.white.withValues(alpha: 0.1),
-                  valueColor: AlwaysStoppedAnimation<Color>(activeTheme.highlightColor),
+              const SizedBox(height: 10),
+              // Gradient progress bar, matching the widget's coloured track
+              SizedBox(
+                height: 4,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      ColoredBox(
+                        color: Colors.white.withValues(alpha: 0.14),
+                      ),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: FractionallySizedBox(
+                          widthFactor: progress,
+                          heightFactor: 1,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  activeTheme.primaryAccent,
+                                  activeTheme.highlightColor,
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -203,4 +271,3 @@ class MiniPlayer extends ConsumerWidget {
     );
   }
 }
-
