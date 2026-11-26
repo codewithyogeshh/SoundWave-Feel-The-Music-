@@ -10,6 +10,7 @@ import 'package:soundwave/core/widgets/song_track_tile.dart';
 import 'package:soundwave/features/library/services/library_storage_service.dart';
 import 'package:soundwave/features/profile/services/app_share_service.dart';
 import 'package:soundwave/features/player/models/song_model.dart';
+import 'package:soundwave/features/update/services/update_service.dart';
 import 'package:soundwave/shared/providers/library_provider.dart';
 import 'package:soundwave/shared/providers/playback_prefs_provider.dart';
 import 'package:soundwave/shared/providers/player_provider.dart';
@@ -24,6 +25,14 @@ class ProfileScreen extends ConsumerStatefulWidget {
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   String? _customUsername;
+
+  /// Version label taken from the build itself (`--dart-define=SOUNDWAVE_VERSION`),
+  /// so the About screen shows the version that was actually shipped even when
+  /// the release version is chosen automatically by the build workflow.
+  String get _versionLabel {
+    final version = UpdateService.installedVersion;
+    return version == null ? '' : ' v$version';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -554,7 +563,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               _buildSettingsTile(
                 icon: Icons.info_outline_rounded,
                 title: 'About App & Version',
-                subtitle: 'SoundWave v1.7.2 • Designed by Yogesh Chavan',
+                subtitle: 'SoundWave$_versionLabel • Designed by Yogesh Chavan',
                 iconColor: currentTheme.secondaryAccent,
                 onTap: () => _showAboutDialog(context),
               ),
@@ -1091,7 +1100,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ),
               const SizedBox(height: 12),
               Text(
-                'SoundWave v1.7.2 is an offline-first music player crafted with Flutter. Built by Yogesh Chavan (@codewithyogeshh).',
+                'SoundWave$_versionLabel is an offline-first music player crafted with Flutter. Built by Yogesh Chavan (@codewithyogeshh).',
                 style: AppTextStyles.subtitle,
               ),
             ],
