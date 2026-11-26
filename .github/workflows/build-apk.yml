@@ -1,18 +1,28 @@
 name: Build APK
 
+# Push app code to main and nothing else is needed: this workflow works out the
+# next version on its own, builds a signed APK, publishes it as a new GitHub
+# release and keeps pubspec.yaml on the released version. The app's in-app
+# update check reads that release, so the phone offers the new build too.
+#
+# The version is the higher of:
+#   - the version you set in pubspec.yaml (so a deliberate 1.8.0 is respected)
+#   - one patch above the newest published release (so plain code pushes bump)
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Release tag, e.g. v1.2.0"
-        required: true
-        default: "v1.2.0"
+        description: "Release tag, e.g. v1.8.0 (leave empty to bump automatically)"
+        required: false
+        default: ""
   push:
     branches:
       - main
     paths:
       - "lib/**"
       - "assets/**"
+      - "android/**"
+      - "web/**"
       - "pubspec.yaml"
     tags:
       - "v*"
@@ -44,40 +54,58 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          api="https://api.github.com/repos/$GITHUB_REPOSITORY"
+          auth=(-H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github+json")
           to_number() { case "${1:-}" in ''|*[!0-9]*) echo 0 ;; *) echo "$1" ;; esac; }
+          parse() {
+            local core="${1#v}"; core="${core#V}"
+            MAJOR=$(to_number "$(echo "$core" | cut -d. -f1)")
+            MINOR=$(to_number "$(echo "$core" | cut -d. -f2)")
+            PATCH=$(to_number "$(echo "$core" | cut -d. -f3)")
+          }
+          tag_taken() {
+            [ "$(curl -s -o /dev/null -w '%{http_code}' "${auth[@]}" "$api/git/ref/tags/$1")" = "200" ]
+          }
+          bump() {
+            PATCH=$((PATCH + 1)); TAG="v${MAJOR}.${MINOR}.${PATCH}"
+            while tag_taken "$TAG"; do PATCH=$((PATCH + 1)); TAG="v${MAJOR}.${MINOR}.${PATCH}"; done
+          }
+
+          PUB=$(grep -m1 '^version:' pubspec.yaml | sed 's/^version:[[:space:]]*//' | cut -d'+' -f1 | tr -d ' ')
+          PUB=${PUB:-1.0.0}
 
           if [ -n "${INPUT_VERSION:-}" ]; then
-            # Manual run: the tag is given by hand.
+            # Manual run with a tag typed in: use it as is.
             TAG="$INPUT_VERSION"
           elif [[ "$GITHUB_REF" == refs/tags/* ]]; then
             # Pushed tag: use it as is.
             TAG="$GITHUB_REF_NAME"
           else
-            # Push to main with code/asset changes: bump the patch of the newest
-            # release, so the app on the phone sees a newer version and offers
-            # the update. No manual workflow run or version edit needed.
-            latest=$(curl -fsSL \
-              -H "Authorization: Bearer $GITHUB_TOKEN" \
-              -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/repos/$GITHUB_REPOSITORY/releases/latest" \
-              | jq -r '.tag_name // empty' 2>/dev/null) || latest=""
+            # Push to main with app code: pick the next version automatically.
+            latest=$(curl -fsSL "${auth[@]}" "$api/releases/latest" | jq -r '.tag_name // empty' 2>/dev/null) || latest=""
             if [ -z "$latest" ]; then
-              latest=$(grep -m1 '^version:' pubspec.yaml | sed 's/^version:[[:space:]]*//' | cut -d'+' -f1 | tr -d ' ')
-              latest="v$latest"
+              TAG="v$PUB"
+              parse "$TAG"
+              if tag_taken "$TAG"; then bump; fi
+            else
+              latest_core="${latest#v}"; latest_core="${latest_core#V}"
+              newer=$(printf '%s\n%s\n' "$latest_core" "$PUB" | sort -V | tail -n1)
+              if [ "$newer" = "$PUB" ] && [ "$PUB" != "$latest_core" ]; then
+                # pubspec.yaml was raised on purpose (e.g. 1.8.0).
+                TAG="v$PUB"
+                parse "$TAG"
+                if tag_taken "$TAG"; then bump; fi
+              else
+                parse "v$latest_core"
+                bump
+              fi
             fi
-            core="${latest#v}"; core="${core#V}"
-            major=$(to_number "$(echo "$core" | cut -d. -f1)")
-            minor=$(to_number "$(echo "$core" | cut -d. -f2)")
-            patch=$(to_number "$(echo "$core" | cut -d. -f3)")
-            TAG="v${major}.${minor}.$((patch + 1))"
           fi
 
+          parse "$TAG"
           VERSION="${TAG#v}"; VERSION="${VERSION#V}"
-          major=$(to_number "$(echo "$VERSION" | cut -d. -f1)")
-          minor=$(to_number "$(echo "$VERSION" | cut -d. -f2)")
-          patch=$(to_number "$(echo "$VERSION" | cut -d. -f3)")
           # Android versionCode must keep growing; derive it from the version.
-          BUILD_NUMBER=$((major * 10000 + minor * 100 + patch))
+          BUILD_NUMBER=$((MAJOR * 10000 + MINOR * 100 + PATCH))
 
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
@@ -172,10 +200,34 @@ jobs:
             Or try the web version: https://getsoundwave.vercel.app
 
             Notes:
-            - This build was published automatically from the latest `main` branch.
+            - Published automatically from commit [`${{ github.sha }}`](https://github.com/${{ github.repository }}/commit/${{ github.sha }}) — every code push to `main` gets its own release.
             - Every release is signed with the same key, so updating from an older SoundWave does **not** need an uninstall. Only v1.3.4 and older (debug-signed) builds need one last uninstall.
             - Downloads and local library scanning work on Android; the web build streams only.
           files: dist/*.apk
           fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Keeps the repo's pubspec.yaml on the version that was just released, so
+      # the next push bumps from the right number. Pushed with GITHUB_TOKEN and
+      # [skip ci], so this never starts another build.
+      - name: Keep pubspec.yaml on the released version
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/')
+        continue-on-error: true
+        shell: bash
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+          BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
+        run: |
+          set -euo pipefail
+          sed -i -E "s/^version:.*/version: ${VERSION}+${BUILD_NUMBER}/" pubspec.yaml
+          if git diff --quiet -- pubspec.yaml; then
+            echo "pubspec.yaml already on $TAG"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add pubspec.yaml
+          git commit -m "chore(release): ${TAG} [skip ci]"
+          git push origin HEAD:main
