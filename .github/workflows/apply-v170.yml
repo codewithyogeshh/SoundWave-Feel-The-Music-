@@ -1,0 +1,26 @@
+name: Apply v1.7.0 patch
+
+on:
+  workflow_dispatch:
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Apply patch and push to main
+        run: |
+          set -euo pipefail
+          cat tmp-apply/v170.a tmp-apply/v170.b tmp-apply/v170.c tmp-apply/v170.d tmp-apply/v170.e tmp-apply/v170.f > /tmp/p.b64
+          base64 -d /tmp/p.b64 | gunzip > /tmp/p.patch
+          git apply --whitespace=nowarn /tmp/p.patch
+          git rm -r --quiet tmp-apply
+          git config user.name "Yogesh Chavan"
+          git config user.email "yogeshbhai0755@gmail.com"
+          git add -A
+          git commit -m "style(widget): bigger text, round cover and punchier colours"
+          git push origin HEAD:main
