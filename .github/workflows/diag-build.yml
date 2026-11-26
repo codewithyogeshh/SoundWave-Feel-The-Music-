@@ -21,24 +21,22 @@ jobs:
           channel: stable
       - name: Build debug APK and save the error
         run: |
-          set -uo pipefail
           flutter pub get > /tmp/pub.log 2>&1 || true
-          flutter build apk --debug > /tmp/build.log 2>&1
-          echo "build_exit=$?" | tee -a /tmp/build.log
+          flutter build apk --debug > /tmp/build.log 2>&1 || true
           {
-            echo "=== build exit ==="
-            grep "build_exit=" /tmp/build.log | tail -1
             echo "=== errors ==="
             grep -nE "^e: |error:|Error:|FAILURE|What went wrong|Caused by|Unresolved|expecting|Execution failed" /tmp/build.log | tail -60
             echo "=== last 60 lines ==="
             tail -60 /tmp/build.log
           } > diag-build-error.txt
+          echo "captured $(wc -l < diag-build-error.txt) lines"
       - name: Publish the error to a branch
+        if: always()
         run: |
           set -euo pipefail
           git config user.name "Yogesh Chavan"
           git config user.email "yogeshbhai0755@gmail.com"
-          git checkout -b diag
+          git checkout -B diag
           git add -f diag-build-error.txt
-          git commit -m "chore: capture widget build error"
+          git commit -m "chore: capture widget build error" || true
           git push -f origin diag
