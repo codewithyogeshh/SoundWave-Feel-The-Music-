@@ -159,10 +159,10 @@ class SoundWaveWidgetProvider : AppWidgetProvider() {
             )
             val nextTitle = state.nextTitle
             if (nextTitle.isNullOrBlank()) {
-                views.setViewVisibility(R.id.widget_next, View.GONE)
+                views.setViewVisibility(R.id.widget_next_song, View.GONE)
             } else {
-                views.setViewVisibility(R.id.widget_next, View.VISIBLE)
-                views.setTextViewText(R.id.widget_next, "Next: $nextTitle")
+                views.setViewVisibility(R.id.widget_next_song, View.VISIBLE)
+                views.setTextViewText(R.id.widget_next_song, "Next: $nextTitle")
             }
 
             // Left: where we are. Right: how much is left in the song, which is
