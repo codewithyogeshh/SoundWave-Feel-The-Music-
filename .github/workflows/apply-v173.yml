@@ -1,0 +1,47 @@
+name: Apply v1.7.3 update
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Rebuild and apply patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat tmp-apply/v173.0* > /tmp/v173.b64
+          echo "9f75f74a019fd5ee74d7b07b759c3a7f  /tmp/v173.b64" | md5sum -c -
+          base64 -d /tmp/v173.b64 | gunzip > /tmp/v173.patch
+          git apply --check /tmp/v173.patch
+          git apply /tmp/v173.patch
+          git diff --stat
+
+      - name: Commit the update
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "Yogesh Chavan"
+          git config user.email "yogeshbhai0755@gmail.com"
+          git add lib .github/workflows/build-apk.yml
+          git commit -m "ci: build and publish an APK automatically on every code push"
+          git push origin HEAD:main
+
+      - name: Remove temporary files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "Yogesh Chavan"
+          git config user.email "yogeshbhai0755@gmail.com"
+          git rm -r -q tmp-apply .github/workflows/apply-v173.yml
+          git commit -q -m "chore: remove the temporary apply workflow"
+          git push origin HEAD:main
