@@ -11,7 +11,6 @@ import android.graphics.BitmapFactory
 import android.graphics.BitmapShader
 import android.graphics.Canvas
 import android.graphics.Paint
-import android.graphics.RectF
 import android.graphics.Shader
 import android.net.Uri
 import android.os.Build
@@ -56,7 +55,7 @@ class SoundWaveWidgetProvider : AppWidgetProvider() {
         const val ACTION_NEXT = "com.soundwave.app.soundwave.WIDGET_NEXT"
         const val ACTION_PREV = "com.soundwave.app.soundwave.WIDGET_PREV"
 
-        private const val ART_PIXELS = 240
+        private const val ART_PIXELS = 288
 
         private var bridge: MethodChannel? = null
         private var artKey: String? = null
@@ -357,9 +356,9 @@ class SoundWaveWidgetProvider : AppWidgetProvider() {
             val canvas = Canvas(output)
             val paint = Paint(Paint.ANTI_ALIAS_FLAG)
             paint.shader = BitmapShader(scaled, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
-            val rect = RectF(0f, 0f, size.toFloat(), size.toFloat())
-            val radius = size * 0.16f
-            canvas.drawRoundRect(rect, radius, radius, paint)
+            // A true circle, so the cover reads as a round sleeve in the widget.
+            val centre = size / 2f
+            canvas.drawCircle(centre, centre, centre, paint)
             return output
         }
 
