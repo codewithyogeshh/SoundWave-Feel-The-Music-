@@ -163,6 +163,7 @@ class SoundWaveWidgetProvider : AppWidgetProvider() {
             } else {
                 views.setViewVisibility(R.id.widget_next_song, View.VISIBLE)
                 views.setTextViewText(R.id.widget_next_song, "Next: $nextTitle")
+                views.setContentDescription(R.id.widget_next_song, "Play next: $nextTitle")
             }
 
             // Left: where we are. Right: how much is left in the song, which is
@@ -192,6 +193,11 @@ class SoundWaveWidgetProvider : AppWidgetProvider() {
                 broadcast(context, ACTION_PLAY_PAUSE, 2),
             )
             views.setOnClickPendingIntent(R.id.widget_next, broadcast(context, ACTION_NEXT, 3))
+            // Tapping the "Next: ..." line jumps straight to that song.
+            views.setOnClickPendingIntent(
+                R.id.widget_next_song,
+                broadcast(context, ACTION_NEXT, 4),
+            )
             return views
         }
 
