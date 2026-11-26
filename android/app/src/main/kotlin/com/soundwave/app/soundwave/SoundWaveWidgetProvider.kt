@@ -131,8 +131,13 @@ class SoundWaveWidgetProvider : AppWidgetProvider() {
 
         private fun buildViews(context: Context, state: WidgetState): RemoteViews {
             val views = RemoteViews(context.packageName, R.layout.soundwave_widget)
+            val hasTrack = state.durationMs > 0L
             views.setTextViewText(R.id.widget_title, state.title)
-            views.setTextViewText(R.id.widget_artist, state.artist)
+            // A short "Paused" hint makes it obvious why the bar is not moving.
+            views.setTextViewText(
+                R.id.widget_artist,
+                if (hasTrack && !state.isPlaying) "${state.artist} · Paused" else state.artist,
+            )
             views.setImageViewResource(
                 R.id.widget_play_pause,
                 if (state.isPlaying) R.drawable.ic_widget_pause else R.drawable.ic_widget_play,
@@ -146,8 +151,13 @@ class SoundWaveWidgetProvider : AppWidgetProvider() {
                 position.toInt(),
                 false,
             )
+            // Left: where we are. Right: how much is left in the song, which is
+            // what people actually glance at.
             views.setTextViewText(R.id.widget_elapsed, formatTime(position))
-            views.setTextViewText(R.id.widget_total, formatTime(state.durationMs))
+            views.setTextViewText(
+                R.id.widget_total,
+                if (hasTrack) "-${formatTime(state.durationMs - position)}" else "0:00",
+            )
 
             applyArtwork(context, views, state.artwork)
 
@@ -173,9 +183,15 @@ class SoundWaveWidgetProvider : AppWidgetProvider() {
         private fun formatTime(ms: Long): String {
             if (ms <= 0L) return "0:00"
             val totalSeconds = ms / 1000
-            val minutes = totalSeconds / 60
+            val hours = totalSeconds / 3600
+            val minutes = (totalSeconds % 3600) / 60
             val seconds = totalSeconds % 60
-            return "$minutes:${seconds.toString().padStart(2, '0')}"
+            val twoDigitSeconds = seconds.toString().padStart(2, '0')
+            return if (hours > 0) {
+                "$hours:${minutes.toString().padStart(2, '0')}:$twoDigitSeconds"
+            } else {
+                "$minutes:$twoDigitSeconds"
+            }
         }
 
         private fun applyArtwork(context: Context, views: RemoteViews, artwork: String?) {
