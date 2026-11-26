@@ -80,7 +80,21 @@ class _SoundWaveAppState extends ConsumerState<SoundWaveApp> {
     // Let the restored session settle so the tap acts on the right song.
     await Future<void>.delayed(const Duration(milliseconds: 800));
     if (!mounted) return;
+    final queueWasEmpty = ref.read(playerProvider).queue.isEmpty;
     _handleWidgetAction(action);
+    // A cold start can restore the saved queue after the tap has already been
+    // replayed, so the skip had nothing to move. Retry once the queue is back
+    // instead of losing the tap.
+    if ((action == 'next' || action == 'prev') && queueWasEmpty) {
+      for (var attempt = 0; attempt < 12; attempt++) {
+        await Future<void>.delayed(const Duration(milliseconds: 250));
+        if (!mounted) return;
+        if (ref.read(playerProvider).queue.isNotEmpty) {
+          _handleWidgetAction(action);
+          return;
+        }
+      }
+    }
   }
 
   /// The widget was tapped: open the player screen straight away so the user
