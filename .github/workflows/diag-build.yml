@@ -1,0 +1,44 @@
+name: Diagnose widget build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Build debug APK and save the error
+        run: |
+          set -uo pipefail
+          flutter pub get > /tmp/pub.log 2>&1 || true
+          flutter build apk --debug > /tmp/build.log 2>&1
+          echo "build_exit=$?" | tee -a /tmp/build.log
+          {
+            echo "=== build exit ==="
+            grep "build_exit=" /tmp/build.log | tail -1
+            echo "=== errors ==="
+            grep -nE "^e: |error:|Error:|FAILURE|What went wrong|Caused by|Unresolved|expecting|Execution failed" /tmp/build.log | tail -60
+            echo "=== last 60 lines ==="
+            tail -60 /tmp/build.log
+          } > diag-build-error.txt
+      - name: Publish the error to a branch
+        run: |
+          set -euo pipefail
+          git config user.name "Yogesh Chavan"
+          git config user.email "yogeshbhai0755@gmail.com"
+          git checkout -b diag
+          git add -f diag-build-error.txt
+          git commit -m "chore: capture widget build error"
+          git push -f origin diag
