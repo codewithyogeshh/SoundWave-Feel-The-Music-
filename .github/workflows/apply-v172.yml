@@ -1,0 +1,27 @@
+name: Apply v1.7.2 patch
+
+on:
+  workflow_dispatch:
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Apply patch and push to main
+        run: |
+          set -euo pipefail
+          cat tmp-apply/v172.0 tmp-apply/v172.1 tmp-apply/v172.2 tmp-apply/v172.3 tmp-apply/v172.4 tmp-apply/v172.5 > /tmp/p.b64
+          base64 -d /tmp/p.b64 | gunzip > /tmp/p.patch
+          git apply --whitespace=nowarn /tmp/p.patch
+          git rm -r --quiet tmp-apply
+          git rm --quiet .github/workflows/apply-v172.yml
+          git config user.name "Yogesh Chavan"
+          git config user.email "yogeshbhai0755@gmail.com"
+          git add -A
+          git commit -m "feat(player): pick play next or add to queue from any song menu"
+          git push origin HEAD:main
