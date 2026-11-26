@@ -17,6 +17,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.view.View
 import android.widget.RemoteViews
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
@@ -33,6 +34,7 @@ class SoundWaveWidgetProvider : AppWidgetProvider() {
     private data class WidgetState(
         val title: String,
         val artist: String,
+        val nextTitle: String?,
         val isPlaying: Boolean,
         val artwork: String?,
         val positionMs: Long,
@@ -43,6 +45,7 @@ class SoundWaveWidgetProvider : AppWidgetProvider() {
         private const val PREFS = "sw_widget"
         private const val KEY_TITLE = "title"
         private const val KEY_ARTIST = "artist"
+        private const val KEY_NEXT_TITLE = "next_title"
         private const val KEY_PLAYING = "playing"
         private const val KEY_ARTWORK = "artwork"
         private const val KEY_POSITION = "position"
@@ -74,6 +77,7 @@ class SoundWaveWidgetProvider : AppWidgetProvider() {
             artist: String,
             isPlaying: Boolean,
             artwork: String?,
+            nextTitle: String?,
             positionMs: Long,
             durationMs: Long,
         ) {
@@ -81,6 +85,7 @@ class SoundWaveWidgetProvider : AppWidgetProvider() {
                 .edit()
                 .putString(KEY_TITLE, title)
                 .putString(KEY_ARTIST, artist)
+                .putString(KEY_NEXT_TITLE, nextTitle)
                 .putBoolean(KEY_PLAYING, isPlaying)
                 .putString(KEY_ARTWORK, artwork)
                 .putLong(KEY_POSITION, positionMs)
@@ -110,6 +115,7 @@ class SoundWaveWidgetProvider : AppWidgetProvider() {
             return WidgetState(
                 title = prefs.getString(KEY_TITLE, null) ?: "SoundWave",
                 artist = prefs.getString(KEY_ARTIST, null) ?: "Tap to open",
+                nextTitle = prefs.getString(KEY_NEXT_TITLE, null),
                 isPlaying = prefs.getBoolean(KEY_PLAYING, false),
                 artwork = prefs.getString(KEY_ARTWORK, null),
                 positionMs = prefs.getLong(KEY_POSITION, 0L),
@@ -151,6 +157,14 @@ class SoundWaveWidgetProvider : AppWidgetProvider() {
                 position.toInt(),
                 false,
             )
+            val nextTitle = state.nextTitle
+            if (nextTitle.isNullOrBlank()) {
+                views.setViewVisibility(R.id.widget_next, View.GONE)
+            } else {
+                views.setViewVisibility(R.id.widget_next, View.VISIBLE)
+                views.setTextViewText(R.id.widget_next, "Next: $nextTitle")
+            }
+
             // Left: where we are. Right: how much is left in the song, which is
             // what people actually glance at.
             views.setTextViewText(R.id.widget_elapsed, formatTime(position))
@@ -167,6 +181,7 @@ class SoundWaveWidgetProvider : AppWidgetProvider() {
                     context,
                     0,
                     Intent(context, MainActivity::class.java)
+                        .putExtra(MainActivity.EXTRA_ROUTE, "/now-playing")
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
                     pendingFlags(),
                 ),

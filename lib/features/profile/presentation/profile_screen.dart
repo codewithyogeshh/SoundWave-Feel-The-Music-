@@ -554,7 +554,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               _buildSettingsTile(
                 icon: Icons.info_outline_rounded,
                 title: 'About App & Version',
-                subtitle: 'SoundWave v1.6.4 • Designed by Yogesh Chavan',
+                subtitle: 'SoundWave v1.6.5 • Designed by Yogesh Chavan',
                 iconColor: currentTheme.secondaryAccent,
                 onTap: () => _showAboutDialog(context),
               ),
@@ -1091,7 +1091,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ),
               const SizedBox(height: 12),
               Text(
-                'SoundWave v1.6.4 is an offline-first music player crafted with Flutter. Built by Yogesh Chavan (@codewithyogeshh).',
+                'SoundWave v1.6.5 is an offline-first music player crafted with Flutter. Built by Yogesh Chavan (@codewithyogeshh).',
                 style: AppTextStyles.subtitle,
               ),
             ],

@@ -32,6 +32,8 @@ class _SoundWaveAppState extends ConsumerState<SoundWaveApp> {
     Future.microtask(_syncHomeWidget);
     // A button tapped while the app was closed is replayed once we are up.
     Future.microtask(_runPendingWidgetAction);
+    // Tapping the widget itself opens the player screen, not just the app.
+    Future.microtask(_openPendingWidgetRoute);
     // Keep the widget progress bar moving while music plays.
     _widgetProgressTimer = Timer.periodic(const Duration(seconds: 2), (_) {
       if (!mounted) return;
@@ -47,6 +49,9 @@ class _SoundWaveAppState extends ConsumerState<SoundWaveApp> {
     switch (action) {
       case 'playPause':
         player.togglePlayPause();
+        break;
+      case 'openPlayer':
+        _openNowPlaying();
         break;
       case 'next':
       case 'prev':
@@ -76,6 +81,29 @@ class _SoundWaveAppState extends ConsumerState<SoundWaveApp> {
     await Future<void>.delayed(const Duration(milliseconds: 800));
     if (!mounted) return;
     _handleWidgetAction(action);
+  }
+
+  /// The widget was tapped: open the player screen straight away so the user
+  /// lands on the song instead of hunting for it.
+  Future<void> _openPendingWidgetRoute() async {
+    final route = await HomeWidgetService.consumePendingRoute();
+    if (route == null || !mounted) return;
+    // Give the resumed session a moment so a restored song is already loaded.
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    if (!mounted) return;
+    if (route == '/now-playing') {
+      _openNowPlaying();
+    } else {
+      appRouter.push(route);
+    }
+  }
+
+  void _openNowPlaying() {
+    if (ref.read(playerProvider).currentSong == null) return;
+    if (appRouter.routeInformationProvider.value.uri.path == '/now-playing') {
+      return;
+    }
+    appRouter.push('/now-playing');
   }
 
   /// True when a real song is loaded or the user already started playback.
@@ -108,6 +136,17 @@ class _SoundWaveAppState extends ConsumerState<SoundWaveApp> {
     );
   }
 
+  /// Title of the song the queue plays next, so the widget can show it.
+  /// Shuffle order lives inside the audio engine, so it is skipped there
+  /// instead of showing a wrong title.
+  String? _nextSongTitle() {
+    final playerState = ref.read(playerProvider);
+    if (playerState.currentSong == null || playerState.isShuffle) return null;
+    final next = playerState.currentIndex + 1;
+    if (next < 0 || next >= playerState.queue.length) return null;
+    return playerState.queue[next].title;
+  }
+
   void _syncHomeWidget() {
     if (!mounted) return;
     final labels = _widgetLabels();
@@ -116,6 +155,7 @@ class _SoundWaveAppState extends ConsumerState<SoundWaveApp> {
       title: labels.title,
       artist: labels.artist,
       artwork: labels.artwork,
+      nextTitle: _nextSongTitle(),
       isPlaying: playerState.isPlaying,
       position: playerState.position,
       duration: playerState.duration,
@@ -158,6 +198,7 @@ class _SoundWaveAppState extends ConsumerState<SoundWaveApp> {
         title: labels.title,
         artist: labels.artist,
         artwork: labels.artwork,
+        nextTitle: _nextSongTitle(),
         isPlaying: next.isPlaying,
         position: next.position,
         duration: next.duration,

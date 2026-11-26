@@ -42,6 +42,7 @@ class HomeWidgetService {
     required String artist,
     required bool isPlaying,
     String? artwork,
+    String? nextTitle,
     required Duration position,
     required Duration duration,
   }) async {
@@ -51,11 +52,22 @@ class HomeWidgetService {
         'artist': artist,
         'isPlaying': isPlaying,
         'artwork': artwork,
+        'nextTitle': nextTitle,
         'positionMs': position.inMilliseconds,
         'durationMs': duration.inMilliseconds,
       });
     } catch (_) {
       // Widget not available (tests, web, unsupported launchers).
+    }
+  }
+
+  /// A tap on the widget asks for a specific screen (`/now-playing`). It is
+  /// handed over once so a cold start can open that screen directly.
+  static Future<String?> consumePendingRoute() async {
+    try {
+      return await _channel.invokeMethod<String>('consumePendingRoute');
+    } catch (_) {
+      return null;
     }
   }
 }

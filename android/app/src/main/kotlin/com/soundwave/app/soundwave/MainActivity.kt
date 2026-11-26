@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.os.Bundle
 import android.provider.Settings
 import androidx.core.content.FileProvider
 import com.ryanheise.audioservice.AudioServiceActivity
@@ -14,6 +15,28 @@ import java.io.FileOutputStream
 
 class MainActivity : AudioServiceActivity() {
     private var widgetChannel: MethodChannel? = null
+
+    companion object {
+        /** Set when the widget is tapped, so the app can open the player screen. */
+        const val EXTRA_ROUTE = "com.soundwave.app.soundwave.ROUTE"
+
+        private var pendingRoute: String? = null
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        pendingRoute = intent?.getStringExtra(EXTRA_ROUTE) ?: pendingRoute
+        super.onCreate(savedInstanceState)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val route = intent.getStringExtra(EXTRA_ROUTE) ?: return
+        intent.removeExtra(EXTRA_ROUTE)
+        pendingRoute = route
+        // Already running: let the Flutter side navigate right away.
+        widgetChannel?.invokeMethod("onWidgetAction", "openPlayer", null)
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -33,6 +56,7 @@ class MainActivity : AudioServiceActivity() {
                     val artist = call.argument<String>("artist") ?: "Tap to open"
                     val isPlaying = call.argument<Boolean>("isPlaying") ?: false
                     val artwork = call.argument<String>("artwork")
+                    val nextTitle = call.argument<String>("nextTitle")
                     val positionMs = call.argument<Number>("positionMs")?.toLong() ?: 0L
                     val durationMs = call.argument<Number>("durationMs")?.toLong() ?: 0L
                     SoundWaveWidgetProvider.update(
@@ -41,10 +65,19 @@ class MainActivity : AudioServiceActivity() {
                         artist,
                         isPlaying,
                         artwork,
+                        nextTitle,
                         positionMs,
                         durationMs,
                     )
                     result.success(true)
+                }
+
+                // A widget tap asked for a specific screen (e.g. the player).
+                "consumePendingRoute" -> {
+                    val route = pendingRoute
+                    pendingRoute = null
+                    intent?.removeExtra(EXTRA_ROUTE)
+                    result.success(route)
                 }
 
                 // Taps that arrived while the app was closed are replayed now.
