@@ -1,5 +1,7 @@
 name: apply3
 on: workflow_dispatch
+permissions:
+  contents: write
 jobs:
   a:
     runs-on: ubuntu-latest
