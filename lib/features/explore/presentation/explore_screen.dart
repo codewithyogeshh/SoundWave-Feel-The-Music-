@@ -95,17 +95,67 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Explore', style: AppTextStyles.screenTitle),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Discover new music everyday',
-                          style: AppTextStyles.subtitle,
-                        ),
-                      ],
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              gradient: activeTheme.accentGradient,
+                              borderRadius: BorderRadius.circular(15),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: activeTheme.highlightColor.withValues(alpha: 0.42),
+                                  blurRadius: 18,
+                                  spreadRadius: 1,
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.explore_rounded,
+                              color: Colors.white,
+                              size: 24,
+                            ),
+                          ),
+                          const SizedBox(width: 11),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                ShaderMask(
+                                  shaderCallback: (rect) =>
+                                      activeTheme.primaryGradient.createShader(rect),
+                                  blendMode: BlendMode.srcIn,
+                                  child: Text(
+                                    'Explore',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppTextStyles.screenTitle.copyWith(
+                                      fontSize: 27,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: -0.4,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  'Discover new music everyday',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: AppTextStyles.subtitle.copyWith(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: activeTheme.highlightColor.withValues(alpha: 0.92),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
+                    const SizedBox(width: 8),
                     GestureDetector(
                       onTap: () {
                         HapticFeedback.selectionClick();
@@ -115,9 +165,14 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                         width: 42,
                         height: 42,
                         decoration: BoxDecoration(
-                          color: AppColors.glassWhiteMedium,
+                          gradient: activeTheme.primaryGradient,
                           borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: AppColors.glassBorder),
+                          boxShadow: [
+                            BoxShadow(
+                              color: activeTheme.primaryAccent.withValues(alpha: 0.4),
+                              blurRadius: 14,
+                            ),
+                          ],
                         ),
                         child: const Icon(
                           Icons.search_rounded,

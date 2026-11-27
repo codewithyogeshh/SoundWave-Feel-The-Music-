@@ -56,27 +56,90 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Search', style: AppTextStyles.screenTitle),
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            gradient: activeTheme.accentGradient,
+                            borderRadius: BorderRadius.circular(14),
+                            boxShadow: [
+                              BoxShadow(
+                                color: activeTheme.highlightColor.withValues(alpha: 0.42),
+                                blurRadius: 16,
+                                spreadRadius: 1,
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.search_rounded,
+                            color: Colors.white,
+                            size: 22,
+                          ),
+                        ),
+                        const SizedBox(width: 11),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              ShaderMask(
+                                shaderCallback: (rect) =>
+                                    activeTheme.primaryGradient.createShader(rect),
+                                blendMode: BlendMode.srcIn,
+                                child: Text(
+                                  'Search',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: AppTextStyles.screenTitle.copyWith(
+                                    fontSize: 27,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: -0.4,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                'Songs, artists, movies & lyrics',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTextStyles.subtitle.copyWith(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: activeTheme.highlightColor.withValues(alpha: 0.92),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
-                      color: activeTheme.primaryAccent.withValues(alpha: 0.15),
+                      gradient: activeTheme.primaryGradient,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: activeTheme.primaryAccent.withValues(alpha: 0.35),
-                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: activeTheme.primaryAccent.withValues(alpha: 0.4),
+                          blurRadius: 12,
+                        ),
+                      ],
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.bolt_rounded, color: activeTheme.primaryAccent, size: 14),
+                        const Icon(Icons.bolt_rounded, color: Colors.white, size: 14),
                         const SizedBox(width: 4),
                         Text(
-                          '320 kbps Streams',
+                          '320 kbps',
                           style: TextStyle(
-                            color: activeTheme.primaryAccent,
+                            color: Colors.white,
                             fontSize: 11,
-                            fontWeight: FontWeight.w700,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
                       ],
@@ -258,7 +321,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                       const SizedBox(width: 6),
                       Text(
                         'Trending Online',
-                        style: AppTextStyles.sectionTitle.copyWith(fontSize: 16),
+                        style: AppTextStyles.sectionTitle.copyWith(
+                        fontSize: 16.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.3,
+                      ),
                       ),
                     ],
                   ),
@@ -292,7 +359,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 children: [
                   Text(
                     'Recent Searches',
-                    style: AppTextStyles.sectionTitle.copyWith(fontSize: 16),
+                    style: AppTextStyles.sectionTitle.copyWith(
+                        fontSize: 16.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.3,
+                      ),
                   ),
                   GestureDetector(
                     onTap: () => notifier.clearHistory(),
@@ -351,7 +422,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             // Popular Artists & Moods
             Text(
               'Explore Online Hits',
-              style: AppTextStyles.sectionTitle.copyWith(fontSize: 16),
+              style: AppTextStyles.sectionTitle.copyWith(
+                        fontSize: 16.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.3,
+                      ),
             ),
             const SizedBox(height: 10),
             _buildPopularSearchTile('Arijit Singh Hits', Icons.trending_up_rounded, activeTheme),

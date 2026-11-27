@@ -642,16 +642,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   _greeting(),
                   style: AppTextStyles.badgeText.copyWith(
                     color: activeTheme.highlightColor,
-                    fontSize: 8.5,
-                    letterSpacing: 1.5,
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.6,
                   ),
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  'SoundWave',
-                  style: AppTextStyles.cardTitle.copyWith(
-                    fontSize: 22,
-                    letterSpacing: -0.7,
+                ShaderMask(
+                  shaderCallback: (rect) =>
+                      activeTheme.primaryGradient.createShader(rect),
+                  blendMode: BlendMode.srcIn,
+                  child: Text(
+                    'SoundWave',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.cardTitle.copyWith(
+                      fontSize: 27,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.6,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
                 Text(
@@ -659,8 +669,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.timeLabel.copyWith(
-                    color: AppColors.textMuted,
-                    fontSize: 10.5,
+                    color: Colors.white.withValues(alpha: 0.7),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],

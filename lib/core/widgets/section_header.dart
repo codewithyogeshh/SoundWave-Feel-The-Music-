@@ -24,28 +24,55 @@ class SectionHeader extends ConsumerWidget {
     return Padding(
       padding: padding,
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          // Glowing accent bar in front of every section title.
+          Container(
+            width: 4,
+            height: 18,
+            decoration: BoxDecoration(
+              gradient: activeTheme.accentGradient,
+              borderRadius: BorderRadius.circular(4),
+              boxShadow: [
+                BoxShadow(
+                  color: activeTheme.highlightColor.withValues(alpha: 0.5),
+                  blurRadius: 8,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 9),
           Expanded(
             child: Text(
               title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: AppTextStyles.sectionTitle,
+              style: AppTextStyles.sectionTitle.copyWith(
+                fontSize: 16.5,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.3,
+              ),
             ),
           ),
           if (actionText != null && onActionTap != null) ...[
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
             GestureDetector(
               onTap: onActionTap,
               behavior: HitTestBehavior.opaque,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: activeTheme.primaryAccent.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: activeTheme.primaryAccent.withValues(alpha: 0.38),
+                  ),
+                ),
                 child: Text(
                   actionText!,
                   style: AppTextStyles.actionLink.copyWith(
-                    color: activeTheme.primaryAccent,
+                    color: activeTheme.highlightColor,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
