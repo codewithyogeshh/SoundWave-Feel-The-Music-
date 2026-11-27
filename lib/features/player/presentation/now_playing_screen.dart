@@ -83,8 +83,10 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
 
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
-    // Responsive album art clamped gracefully by both width and height to prevent vertical scrolling/overflow
-    final artSize = (screenWidth * 0.70).clamp(200.0, (screenHeight * 0.32).clamp(200.0, 280.0));
+    // A hero-sized cover: almost as wide as the phone, still capped by height
+    // so the transport deck stays reachable on short screens.
+    final artMaxByHeight = (screenHeight * 0.40).clamp(210.0, 340.0);
+    final artSize = (screenWidth * 0.78).clamp(210.0, artMaxByHeight);
 
     return Scaffold(
       body: AppBackground(
@@ -124,42 +126,69 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                               },
                               child: Hero(
                                 tag: 'album_art_${song.id}',
-                                child: AlbumArtwork(
-                                  size: artSize,
-                                  borderRadius: 28,
-                                  artworkUrl: song.artworkPath,
-                                  albumId: song.albumId,
-                                  songId: song.rawId,
-                                  songTitle: song.title,
-                                  songArtist: song.artist,
-                                  hasGlow: true,
-                                  glowColor: activeTheme.primaryAccent,
-                                  overlay: Stack(
-                                    fit: StackFit.expand,
-                                    children: [
-                                      // Glass sheen so the cover catches the light.
-                                      IgnorePointer(
-                                        child: DecoratedBox(
-                                          decoration: BoxDecoration(
-                                            gradient: LinearGradient(
-                                              begin: Alignment.topLeft,
-                                              end: Alignment.bottomRight,
-                                              colors: [
-                                                Colors.white.withValues(alpha: 0.16),
-                                                Colors.transparent,
-                                                Colors.black.withValues(alpha: 0.20),
-                                              ],
-                                              stops: const [0.0, 0.42, 1.0],
+                                // Gradient ring + lifted glow, the same language
+                                // as the round cover on the mini player.
+                                child: Container(
+                                  padding: const EdgeInsets.all(3),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(36),
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [
+                                        activeTheme.highlightColor.withValues(alpha: 0.95),
+                                        activeTheme.primaryAccent.withValues(alpha: 0.9),
+                                      ],
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: activeTheme.primaryAccent.withValues(alpha: 0.5),
+                                        blurRadius: 36,
+                                        spreadRadius: 2,
+                                        offset: const Offset(0, 14),
+                                      ),
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: 0.35),
+                                        blurRadius: 18,
+                                        offset: const Offset(0, 8),
+                                      ),
+                                    ],
+                                  ),
+                                  child: AlbumArtwork(
+                                    size: artSize,
+                                    borderRadius: 33,
+                                    artworkUrl: song.artworkPath,
+                                    albumId: song.albumId,
+                                    songId: song.rawId,
+                                    songTitle: song.title,
+                                    songArtist: song.artist,
+                                    overlay: Stack(
+                                      fit: StackFit.expand,
+                                      children: [
+                                        // Glass sheen so the cover catches the light.
+                                        IgnorePointer(
+                                          child: DecoratedBox(
+                                            decoration: BoxDecoration(
+                                              gradient: LinearGradient(
+                                                begin: Alignment.topLeft,
+                                                end: Alignment.bottomRight,
+                                                colors: [
+                                                  Colors.white.withValues(alpha: 0.18),
+                                                  Colors.transparent,
+                                                  Colors.black.withValues(alpha: 0.24),
+                                                ],
+                                                stops: const [0.0, 0.42, 1.0],
+                                              ),
                                             ),
                                           ),
                                         ),
-                                      ),
-                                      Positioned(
-                                        top: 12,
-                                        right: 12,
-                                        child: _buildHeartOverlayButton(isFav, song, activeTheme),
-                                      ),
-                                    ],
+                                        Positioned(
+                                          top: 12,
+                                          right: 12,
+                                          child: _buildHeartOverlayButton(isFav, song, activeTheme),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ),
@@ -213,25 +242,65 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                   ),
                 ),
 
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
 
-                // Song Title, Artist & HD/Offline Badge
-                _stagger(2, _buildSongInfo(song, activeTheme, isDownloaded: libState.isDownloaded(song.id))),
+                // Song info + seek + transport deck sit on one lifted, tinted
+                // card so the screen carries the mini player's colour wash.
+                _stagger(
+                  2,
+                  GlassCard(
+                    borderRadius: 28,
+                    blur: 20,
+                    color: activeTheme.secondaryBackground.withValues(alpha: 0.62),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        activeTheme.primaryAccent.withValues(alpha: 0.28),
+                        activeTheme.highlightColor.withValues(alpha: 0.12),
+                      ],
+                    ),
+                    borderColor: activeTheme.highlightColor.withValues(alpha: 0.36),
+                    shadows: [
+                      BoxShadow(
+                        color: activeTheme.primaryAccent.withValues(alpha: 0.24),
+                        blurRadius: 28,
+                        offset: const Offset(0, 12),
+                      ),
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.24),
+                        blurRadius: 14,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                    padding: const EdgeInsets.fromLTRB(16, 18, 16, 14),
+                    child: Column(
+                      children: [
+                        // Song Title, Artist & HD/Offline Badge
+                        _buildSongInfo(
+                          song,
+                          activeTheme,
+                          isDownloaded: libState.isDownloaded(song.id),
+                        ),
 
-                const SizedBox(height: 12),
+                        const SizedBox(height: 10),
 
-                // Seek Slider & Duration Labels
-                _stagger(3, _buildProgressBar(posMs, maxMs, position, duration, activeTheme)),
+                        // Seek Slider & Duration Labels
+                        _buildProgressBar(posMs, maxMs, position, duration, activeTheme),
 
-                const SizedBox(height: 10),
+                        const SizedBox(height: 6),
 
-                // Main Player Controls (Shuffle, Prev, Play/Pause, Next, Repeat)
-                _stagger(4, _buildPlayerControls(playerState, activeTheme)),
+                        // Main Player Controls (Shuffle, Prev, Play/Pause, Next, Repeat)
+                        _buildPlayerControls(playerState, activeTheme),
 
-                const SizedBox(height: 8),
+                        const SizedBox(height: 10),
 
-                // Quick jump back 10s / forward 30s
-                _stagger(5, _buildSeekRow(playerState)),
+                        // Quick jump back 10s / forward 30s
+                        _buildSeekRow(playerState),
+                      ],
+                    ),
+                  ),
+                ),
 
                 const SizedBox(height: 10),
 
@@ -508,16 +577,25 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
             children: [
               Text(
                 song.title,
-                maxLines: 1,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.songTitleLarge,
+                style: AppTextStyles.songTitleLarge.copyWith(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.6,
+                  height: 1.15,
+                ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 6),
               Text(
                 song.artist,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.artistNameLarge,
+                style: AppTextStyles.artistNameLarge.copyWith(
+                  fontSize: 15.5,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white.withValues(alpha: 0.82),
+                ),
               ),
             ],
           ),
@@ -564,8 +642,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
 
     return Column(
       children: [
-        // Gradient-filled seek bar: the track is tinted by the active theme
-        // instead of a flat accent line.
+        // Gradient-filled seek bar, tinted from primary to highlight so the
+        // progress reads as brightly as the mini player's.
         ShaderMask(
           blendMode: BlendMode.srcIn,
           shaderCallback: (rect) => LinearGradient(
@@ -576,12 +654,12 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
           ).createShader(rect),
           child: SliderTheme(
             data: SliderTheme.of(context).copyWith(
-              trackHeight: 4,
+              trackHeight: 5,
               activeTrackColor: Colors.white,
-              inactiveTrackColor: Colors.white.withValues(alpha: 0.18),
+              inactiveTrackColor: Colors.white.withValues(alpha: 0.22),
               thumbColor: Colors.white,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
-              overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 17),
               overlayColor: activeTheme.primaryAccent.withValues(alpha: 0.16),
             ),
             child: Slider(
@@ -629,9 +707,9 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
       child: Text(
         label,
         style: AppTextStyles.timeLabel.copyWith(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: dim ? AppColors.textMuted : AppColors.textSecondary,
+          fontSize: 11.5,
+          fontWeight: FontWeight.w700,
+          color: dim ? AppColors.textMuted : Colors.white.withValues(alpha: 0.92),
           fontFeatures: const [FontFeature.tabularFigures()],
         ),
       ),
@@ -669,23 +747,23 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
         ),
         // Main Glow Play / Pause with a breathing halo while music plays.
         Container(
-          width: 90,
-          height: 90,
+          width: 96,
+          height: 96,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             border: Border.all(
               color: playerState.isPlaying
-                  ? activeTheme.highlightColor.withValues(alpha: 0.35)
-                  : activeTheme.highlightColor.withValues(alpha: 0.14),
-              width: 1.2,
+                  ? activeTheme.highlightColor.withValues(alpha: 0.5)
+                  : activeTheme.highlightColor.withValues(alpha: 0.2),
+              width: 1.6,
             ),
           ),
           child: Center(
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 460),
               curve: Curves.easeOutCubic,
-              width: playerState.isPlaying ? 76 : 70,
-              height: playerState.isPlaying ? 76 : 70,
+              width: playerState.isPlaying ? 84 : 78,
+              height: playerState.isPlaying ? 84 : 78,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: activeTheme.accentGradient,
