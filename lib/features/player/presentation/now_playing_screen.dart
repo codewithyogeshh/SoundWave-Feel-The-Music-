@@ -256,16 +256,19 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        activeTheme.primaryAccent.withValues(alpha: 0.28),
-                        activeTheme.highlightColor.withValues(alpha: 0.12),
+                        activeTheme.primaryAccent.withValues(alpha: 0.44),
+                        activeTheme.highlightColor.withValues(alpha: 0.22),
+                        activeTheme.primaryAccent.withValues(alpha: 0.2),
                       ],
+                      stops: const [0.0, 0.6, 1.0],
                     ),
-                    borderColor: activeTheme.highlightColor.withValues(alpha: 0.36),
+                    borderColor: activeTheme.highlightColor.withValues(alpha: 0.55),
                     shadows: [
                       BoxShadow(
-                        color: activeTheme.primaryAccent.withValues(alpha: 0.24),
-                        blurRadius: 28,
-                        offset: const Offset(0, 12),
+                        color: activeTheme.primaryAccent.withValues(alpha: 0.36),
+                        blurRadius: 32,
+                        spreadRadius: 1,
+                        offset: const Offset(0, 14),
                       ),
                       BoxShadow(
                         color: Colors.black.withValues(alpha: 0.24),
@@ -584,21 +587,21 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: AppTextStyles.songTitleLarge.copyWith(
-                  fontSize: 26,
+                  fontSize: 30,
                   fontWeight: FontWeight.w800,
-                  letterSpacing: -0.6,
-                  height: 1.15,
+                  letterSpacing: -0.8,
+                  height: 1.12,
                 ),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 7),
               Text(
                 song.artist,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: AppTextStyles.artistNameLarge.copyWith(
-                  fontSize: 15.5,
+                  fontSize: 17.5,
                   fontWeight: FontWeight.w700,
-                  color: Colors.white.withValues(alpha: 0.82),
+                  color: Colors.white.withValues(alpha: 0.92),
                 ),
               ),
             ],
@@ -658,12 +661,12 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
           ).createShader(rect),
           child: SliderTheme(
             data: SliderTheme.of(context).copyWith(
-              trackHeight: 5,
+              trackHeight: 6,
               activeTrackColor: Colors.white,
-              inactiveTrackColor: Colors.white.withValues(alpha: 0.22),
+              inactiveTrackColor: Colors.white.withValues(alpha: 0.26),
               thumbColor: Colors.white,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
-              overlayShape: const RoundSliderOverlayShape(overlayRadius: 17),
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 9),
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 18),
               overlayColor: activeTheme.primaryAccent.withValues(alpha: 0.16),
             ),
             child: Slider(
@@ -711,9 +714,9 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
       child: Text(
         label,
         style: AppTextStyles.timeLabel.copyWith(
-          fontSize: 11.5,
+          fontSize: 12.5,
           fontWeight: FontWeight.w700,
-          color: dim ? AppColors.textMuted : Colors.white.withValues(alpha: 0.92),
+          color: dim ? AppColors.textMuted : Colors.white.withValues(alpha: 0.96),
           fontFeatures: const [FontFeature.tabularFigures()],
         ),
       ),
@@ -730,10 +733,10 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
           tooltip: 'Toggle shuffle',
           icon: Icon(
             Icons.shuffle_rounded,
-            size: 24,
+            size: 27,
             color: playerState.isShuffle
                 ? activeTheme.highlightColor
-                : AppColors.textMuted,
+                : Colors.white.withValues(alpha: 0.72),
           ),
           onPressed: () {
             HapticFeedback.selectionClick();
@@ -751,33 +754,33 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
         ),
         // Main Glow Play / Pause with a breathing halo while music plays.
         Container(
-          width: 96,
-          height: 96,
+          width: 108,
+          height: 108,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             border: Border.all(
               color: playerState.isPlaying
-                  ? activeTheme.highlightColor.withValues(alpha: 0.5)
-                  : activeTheme.highlightColor.withValues(alpha: 0.2),
-              width: 1.6,
+                  ? activeTheme.highlightColor.withValues(alpha: 0.65)
+                  : activeTheme.highlightColor.withValues(alpha: 0.28),
+              width: 2,
             ),
           ),
           child: Center(
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 460),
               curve: Curves.easeOutCubic,
-              width: playerState.isPlaying ? 84 : 78,
-              height: playerState.isPlaying ? 84 : 78,
+              width: playerState.isPlaying ? 96 : 90,
+              height: playerState.isPlaying ? 96 : 90,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: activeTheme.accentGradient,
                 boxShadow: [
                   BoxShadow(
                     color: activeTheme.highlightColor.withValues(
-                      alpha: playerState.isPlaying ? 0.55 : 0.3,
+                      alpha: playerState.isPlaying ? 0.68 : 0.4,
                     ),
-                    blurRadius: playerState.isPlaying ? 34 : 22,
-                    spreadRadius: playerState.isPlaying ? 4 : 1,
+                    blurRadius: playerState.isPlaying ? 42 : 28,
+                    spreadRadius: playerState.isPlaying ? 6 : 2,
                   ),
                 ],
               ),
@@ -819,7 +822,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                             : Icons.play_arrow_rounded,
                         key: ValueKey<bool>(playerState.isPlaying),
                         color: activeTheme.onAccentGradient,
-                        size: 36,
+                        size: 44,
                       ),
                     ),
                   ),
@@ -844,10 +847,10 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
             playerState.repeatMode == AudioServiceRepeatMode.one
                 ? Icons.repeat_one_rounded
                 : Icons.repeat_rounded,
-            size: 24,
+            size: 27,
             color: playerState.repeatMode != AudioServiceRepeatMode.none
                 ? activeTheme.highlightColor
-                : AppColors.textMuted,
+                : Colors.white.withValues(alpha: 0.72),
           ),
           onPressed: () {
             HapticFeedback.selectionClick();
@@ -863,7 +866,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     required String tooltip,
     required IconData icon,
     required VoidCallback onPressed,
-    double size = 46,
+    double size = 54,
   }) {
     return Tooltip(
       message: tooltip,
@@ -878,10 +881,12 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
             height: size,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Colors.white.withValues(alpha: 0.06),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+              color: Colors.white.withValues(alpha: 0.1),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.24),
+              ),
             ),
-            child: Icon(icon, size: 28, color: Colors.white),
+            child: Icon(icon, size: 34, color: Colors.white),
           ),
         ),
       ),
@@ -927,7 +932,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
               : null,
           child: Text(
             label,
-            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+            style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700),
           ),
         ),
       );
