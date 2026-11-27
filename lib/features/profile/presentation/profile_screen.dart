@@ -59,8 +59,60 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Profile & Settings', style: AppTextStyles.screenTitle),
-              const SizedBox(height: 18),
+              // Hero header — big gradient title matching the player screens
+              Row(
+                children: [
+                  Container(
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      gradient: currentTheme.primaryGradient,
+                      borderRadius: BorderRadius.circular(15),
+                      boxShadow: [
+                        BoxShadow(
+                          color: currentTheme.primaryAccent.withValues(alpha: 0.45),
+                          blurRadius: 18,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(Icons.person_rounded, color: Colors.white, size: 24),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ShaderMask(
+                          shaderCallback: (rect) => currentTheme.primaryGradient.createShader(rect),
+                          blendMode: BlendMode.srcIn,
+                          child: Text(
+                            'Profile & Settings',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTextStyles.screenTitle.copyWith(
+                              fontSize: 27,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.4,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Your music, your rules',
+                          style: AppTextStyles.subtitle.copyWith(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                            color: currentTheme.highlightColor.withValues(alpha: 0.92),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
 
               // Developer Spotlight Card (Front and Center)
               const DeveloperSpotlightCard(),
@@ -68,31 +120,56 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
               // User Profile Card
               GlassCard(
-                borderRadius: 24,
+                borderRadius: 26,
                 blur: 0,
                 padding: const EdgeInsets.all(18),
-                color: currentTheme.secondaryBackground.withValues(alpha: 0.86),
-                borderColor: currentTheme.primaryAccent.withValues(alpha: 0.3),
+                color: currentTheme.secondaryBackground.withValues(alpha: 0.9),
+                borderColor: currentTheme.highlightColor.withValues(alpha: 0.45),
+                shadows: [
+                  BoxShadow(
+                    color: currentTheme.primaryAccent.withValues(alpha: 0.28),
+                    blurRadius: 22,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
                 child: Row(
                   children: [
                     Stack(
                       children: [
                         Container(
-                          width: 64,
-                          height: 64,
+                          width: 78,
+                          height: 78,
+                          padding: const EdgeInsets.all(3),
                           decoration: BoxDecoration(
                             gradient: currentTheme.primaryGradient,
                             shape: BoxShape.circle,
-                            border: Border.all(
-                              color: currentTheme.highlightColor,
-                              width: 2,
-                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: currentTheme.highlightColor.withValues(alpha: 0.5),
+                                blurRadius: 18,
+                                spreadRadius: 1,
+                              ),
+                              BoxShadow(
+                                color: currentTheme.primaryAccent.withValues(alpha: 0.35),
+                                blurRadius: 32,
+                                spreadRadius: 4,
+                              ),
+                            ],
                           ),
-                          child: const Center(
-                            child: Icon(
-                              Icons.music_note_rounded,
-                              size: 34,
-                              color: Colors.white,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: currentTheme.secondaryBackground,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.22),
+                              ),
+                            ),
+                            child: const Center(
+                              child: Icon(
+                                Icons.music_note_rounded,
+                                size: 38,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
                         ),
@@ -129,7 +206,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                 Flexible(
                                   child: Text(
                                     username,
-                                    style: AppTextStyles.cardTitle.copyWith(fontSize: 18),
+                                    style: AppTextStyles.cardTitle.copyWith(
+                                      fontSize: 21,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: -0.3,
+                                    ),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
@@ -142,20 +223,30 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           const SizedBox(height: 3),
                           Text(
                             'SoundWave VIP Music Engine',
-                            style: AppTextStyles.artistName.copyWith(fontSize: 12),
+                            style: AppTextStyles.artistName.copyWith(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white.withValues(alpha: 0.82),
+                            ),
                           ),
                           const SizedBox(height: 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 4),
                             decoration: BoxDecoration(
                               gradient: currentTheme.accentGradient,
                               borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: currentTheme.highlightColor.withValues(alpha: 0.4),
+                                  blurRadius: 12,
+                                ),
+                              ],
                             ),
                             child: const Text(
                               'Offline Music Player Active',
                               style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w800,
                                 color: Colors.white,
                               ),
                             ),
@@ -170,7 +261,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               const SizedBox(height: 22),
 
               // Listening Stats Section
-              Text('Listening Statistics', style: AppTextStyles.sectionTitle.copyWith(fontSize: 16)),
+              _sectionTitle(Icons.insights_rounded, 'Listening Statistics'),
               const SizedBox(height: 12),
               Row(
                 children: [
@@ -275,7 +366,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               const SizedBox(height: 26),
 
               // Theme Selector Section
-              Text('App Theme & Appearance', style: AppTextStyles.sectionTitle.copyWith(fontSize: 16)),
+              _sectionTitle(Icons.palette_rounded, 'App Theme & Appearance'),
               const SizedBox(height: 6),
               Text(
                 'Select from 5 luxury neon and OLED themes',
@@ -376,7 +467,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               const SizedBox(height: 26),
 
               // Audio & Playback Settings
-              Text('Audio & Playback Engine', style: AppTextStyles.sectionTitle.copyWith(fontSize: 16)),
+              _sectionTitle(Icons.graphic_eq_rounded, 'Audio & Playback Engine'),
               const SizedBox(height: 12),
 
               // Stream quality is real: JioSaavn's CDN serves the same track
@@ -440,7 +531,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               const SizedBox(height: 26),
 
               // Battery & Device
-              Text('Battery & Device', style: AppTextStyles.sectionTitle.copyWith(fontSize: 16)),
+              _sectionTitle(Icons.battery_charging_full_rounded, 'Battery & Device'),
               const SizedBox(height: 12),
 
               _buildSwitchTile(
@@ -517,7 +608,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               const SizedBox(height: 26),
 
               // Storage & Scanning
-              Text('Storage & Maintenance', style: AppTextStyles.sectionTitle.copyWith(fontSize: 16)),
+              _sectionTitle(Icons.storage_rounded, 'Storage & Maintenance'),
               const SizedBox(height: 12),
 
               _buildSettingsTile(
@@ -557,7 +648,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               const SizedBox(height: 26),
 
               // About & Legal
-              Text('About SoundWave', style: AppTextStyles.sectionTitle.copyWith(fontSize: 16)),
+              _sectionTitle(Icons.info_rounded, 'About SoundWave'),
               const SizedBox(height: 12),
 
               _buildSettingsTile(
@@ -616,6 +707,42 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         .key;
   }
 
+  /// Loud section heading: gradient bar, glowing icon and bold type.
+  Widget _sectionTitle(IconData icon, String title) {
+    final theme = ref.watch(themeProvider);
+    return Row(
+      children: [
+        Container(
+          width: 4,
+          height: 20,
+          decoration: BoxDecoration(
+            gradient: theme.accentGradient,
+            borderRadius: BorderRadius.circular(4),
+            boxShadow: [
+              BoxShadow(
+                color: theme.highlightColor.withValues(alpha: 0.55),
+                blurRadius: 10,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 9),
+        Icon(icon, size: 18, color: theme.highlightColor),
+        const SizedBox(width: 7),
+        Expanded(
+          child: Text(
+            title,
+            style: AppTextStyles.sectionTitle.copyWith(
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.2,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildStatCard({
     required IconData icon,
     required String value,
@@ -623,21 +750,37 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     required Gradient gradient,
     VoidCallback? onTap,
   }) {
+    final accent = gradient.colors.first;
     return GlassCard(
-      borderRadius: 18,
+      borderRadius: 20,
       blur: 0,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
       color: AppColors.glassWhiteMedium,
+      borderColor: accent.withValues(alpha: 0.32),
+      shadows: [
+        BoxShadow(
+          color: accent.withValues(alpha: 0.18),
+          blurRadius: 16,
+          offset: const Offset(0, 6),
+        ),
+      ],
       onTap: onTap,
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(9),
             decoration: BoxDecoration(
               gradient: gradient,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(13),
+              boxShadow: [
+                BoxShadow(
+                  color: accent.withValues(alpha: 0.45),
+                  blurRadius: 12,
+                  spreadRadius: 1,
+                ),
+              ],
             ),
-            child: Icon(icon, color: Colors.white, size: 20),
+            child: Icon(icon, color: Colors.white, size: 21),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -648,20 +791,29 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   value,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.cardTitle.copyWith(fontSize: 18),
+                  style: AppTextStyles.cardTitle.copyWith(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.3,
+                  ),
                 ),
                 Text(
                   label,
                   style: AppTextStyles.timeLabel.copyWith(
-                    color: AppColors.textMuted,
+                    color: Colors.white.withValues(alpha: 0.7),
                     fontSize: 11,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
             ),
           ),
           if (onTap != null)
-            const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white24, size: 12),
+            Icon(
+              Icons.arrow_forward_ios_rounded,
+              color: accent.withValues(alpha: 0.7),
+              size: 12,
+            ),
         ],
       ),
     );
@@ -926,34 +1078,72 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     Color iconColor = AppColors.neonBlue,
   }) {
     return GlassCard(
-      borderRadius: 18,
+      borderRadius: 20,
       blur: 0,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       color: AppColors.glassWhiteMedium,
+      borderColor: iconColor.withValues(alpha: 0.3),
+      shadows: [
+        BoxShadow(
+          color: iconColor.withValues(alpha: 0.16),
+          blurRadius: 16,
+          offset: const Offset(0, 5),
+        ),
+      ],
       onTap: onTap,
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(9),
             decoration: BoxDecoration(
-              color: AppColors.glassWhiteMedium,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.glassBorderSubtle),
+              gradient: LinearGradient(
+                colors: [iconColor, iconColor.withValues(alpha: 0.55)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(13),
+              boxShadow: [
+                BoxShadow(
+                  color: iconColor.withValues(alpha: 0.42),
+                  blurRadius: 12,
+                  spreadRadius: 1,
+                ),
+              ],
             ),
-            child: Icon(icon, color: iconColor, size: 20),
+            child: Icon(icon, color: Colors.white, size: 20),
           ),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: AppTextStyles.songTitle.copyWith(fontSize: 14)),
+                Text(
+                  title,
+                  style: AppTextStyles.songTitle.copyWith(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text(subtitle, style: AppTextStyles.subtitle.copyWith(fontSize: 11)),
+                Text(
+                  subtitle,
+                  style: AppTextStyles.subtitle.copyWith(
+                    fontSize: 11.5,
+                    height: 1.3,
+                    color: Colors.white.withValues(alpha: 0.66),
+                  ),
+                ),
               ],
             ),
           ),
-          const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted, size: 20),
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.16),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.chevron_right_rounded, color: iconColor, size: 18),
+          ),
         ],
       ),
     );
@@ -968,37 +1158,71 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     Color iconColor = AppColors.purple,
   }) {
     final activeTheme = ref.watch(themeProvider);
+    final accent = value ? activeTheme.primaryAccent : iconColor;
     return GlassCard(
-      borderRadius: 18,
+      borderRadius: 20,
       blur: 0,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       color: AppColors.glassWhiteMedium,
+      borderColor: accent.withValues(alpha: value ? 0.42 : 0.24),
+      shadows: [
+        BoxShadow(
+          color: accent.withValues(alpha: value ? 0.22 : 0.12),
+          blurRadius: 16,
+          offset: const Offset(0, 5),
+        ),
+      ],
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(9),
             decoration: BoxDecoration(
-              color: AppColors.glassWhiteMedium,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.glassBorderSubtle),
+              gradient: LinearGradient(
+                colors: [iconColor, iconColor.withValues(alpha: 0.55)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(13),
+              boxShadow: [
+                BoxShadow(
+                  color: iconColor.withValues(alpha: 0.4),
+                  blurRadius: 12,
+                  spreadRadius: 1,
+                ),
+              ],
             ),
-            child: Icon(icon, color: iconColor, size: 20),
+            child: Icon(icon, color: Colors.white, size: 20),
           ),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: AppTextStyles.songTitle.copyWith(fontSize: 14)),
+                Text(
+                  title,
+                  style: AppTextStyles.songTitle.copyWith(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text(subtitle, style: AppTextStyles.subtitle.copyWith(fontSize: 11)),
+                Text(
+                  subtitle,
+                  style: AppTextStyles.subtitle.copyWith(
+                    fontSize: 11.5,
+                    height: 1.3,
+                    color: Colors.white.withValues(alpha: 0.66),
+                  ),
+                ),
               ],
             ),
           ),
           Switch(
             value: value,
             activeThumbColor: activeTheme.highlightColor,
-            activeTrackColor: activeTheme.secondaryAccent.withValues(alpha: 0.45),
+            activeTrackColor: activeTheme.primaryAccent.withValues(alpha: 0.6),
+            inactiveThumbColor: Colors.white.withValues(alpha: 0.7),
+            inactiveTrackColor: Colors.white.withValues(alpha: 0.14),
             onChanged: onChanged,
           ),
         ],
