@@ -214,7 +214,11 @@ class DownloadOptionsSheet extends ConsumerWidget {
             // Section Title
             Text(
               isAlreadyDownloaded ? 'Song Downloaded' : 'Choose Download Location',
-              style: AppTextStyles.sectionTitle.copyWith(fontSize: 16),
+              style: AppTextStyles.sectionTitle.copyWith(
+                fontSize: 16.5,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.3,
+              ),
             ),
             const SizedBox(height: 12),
 

@@ -310,17 +310,31 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Downloads',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.songTitle.copyWith(fontSize: 18),
+                ShaderMask(
+                  shaderCallback: (rect) =>
+                      activeTheme.primaryGradient.createShader(rect),
+                  blendMode: BlendMode.srcIn,
+                  child: Text(
+                    'Downloads',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.songTitle.copyWith(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.4,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
                 Text(
                   'Offline audio and storage',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.artistName.copyWith(fontSize: 11.5),
+                  style: AppTextStyles.artistName.copyWith(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: activeTheme.highlightColor.withValues(alpha: 0.92),
+                  ),
                 ),
               ],
             ),
@@ -413,20 +427,30 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
       child: Row(
         children: [
           Container(
-            width: 3,
-            height: 14,
+            width: 4,
+            height: 18,
             decoration: BoxDecoration(
               gradient: activeTheme.accentGradient,
-              borderRadius: BorderRadius.circular(2),
+              borderRadius: BorderRadius.circular(4),
+              boxShadow: [
+                BoxShadow(
+                  color: activeTheme.highlightColor.withValues(alpha: 0.5),
+                  blurRadius: 8,
+                ),
+              ],
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 9),
           Expanded(
             child: Text(
               title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: AppTextStyles.sectionTitle.copyWith(fontSize: 15),
+              style: AppTextStyles.sectionTitle.copyWith(
+                fontSize: 16.5,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.3,
+              ),
             ),
           ),
           if (trailing != null)

@@ -376,7 +376,11 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
           children: [
             Text(
               'Now Playing',
-              style: AppTextStyles.sectionTitle.copyWith(fontSize: 16),
+              style: AppTextStyles.sectionTitle.copyWith(
+                fontSize: 16.5,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.3,
+              ),
             ),
             const SizedBox(height: 2),
             FittedBox(
@@ -1363,7 +1367,11 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                 const SizedBox(width: 8),
                 Text(
                   'Up Next',
-                  style: AppTextStyles.sectionTitle.copyWith(fontSize: 16),
+                  style: AppTextStyles.sectionTitle.copyWith(
+                    fontSize: 16.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.3,
+                  ),
                 ),
                 const SizedBox(width: 8),
                 Container(

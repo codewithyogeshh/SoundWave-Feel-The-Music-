@@ -97,10 +97,23 @@ class PlaylistDetailScreen extends ConsumerWidget {
                       glowColor: activeTheme.primaryAccent,
                     ),
                     const SizedBox(height: 18),
-                    Text(
-                      playlist.name,
-                      textAlign: TextAlign.center,
-                      style: AppTextStyles.screenTitle.copyWith(fontSize: 24),
+                    ShaderMask(
+                      shaderCallback: (rect) =>
+                          activeTheme.primaryGradient.createShader(rect),
+                      blendMode: BlendMode.srcIn,
+                      child: Text(
+                        playlist.name,
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.screenTitle.copyWith(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.4,
+                          height: 1.15,
+                          color: Colors.white,
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 6),
                     Text(
@@ -108,7 +121,11 @@ class PlaylistDetailScreen extends ConsumerWidget {
                           ? playlist.description
                           : '${playlist.songCount} Tracks curated for you',
                       textAlign: TextAlign.center,
-                      style: AppTextStyles.subtitle,
+                      style: AppTextStyles.subtitle.copyWith(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: activeTheme.highlightColor.withValues(alpha: 0.92),
+                      ),
                     ),
                     const SizedBox(height: 18),
 

@@ -28,9 +28,19 @@ class EqualizerScreen extends ConsumerWidget {
           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: Text(
-          'Equalizer Studio',
-          style: AppTextStyles.cardTitle.copyWith(fontSize: 18),
+        title: ShaderMask(
+          shaderCallback: (rect) =>
+              activeTheme.primaryGradient.createShader(rect),
+          blendMode: BlendMode.srcIn,
+          child: Text(
+            'Equalizer Studio',
+            style: AppTextStyles.cardTitle.copyWith(
+              fontSize: 21,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.4,
+              color: Colors.white,
+            ),
+          ),
         ),
         centerTitle: true,
         actions: [
@@ -169,14 +179,26 @@ class EqualizerScreen extends ConsumerWidget {
                   duration: const Duration(milliseconds: 200),
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   decoration: BoxDecoration(
-                    gradient: isSelected ? activeTheme.primaryGradient : null,
-                    color: isSelected ? null : Colors.white.withValues(alpha: 0.06),
+                    gradient: isSelected ? activeTheme.accentGradient : null,
+                    color: isSelected
+                        ? null
+                        : activeTheme.primaryAccent.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
                       color: isSelected
-                          ? activeTheme.primaryAccent.withValues(alpha: 0.8)
-                          : Colors.white.withValues(alpha: 0.1),
+                          ? Colors.white.withValues(alpha: 0.45)
+                          : activeTheme.primaryAccent.withValues(alpha: 0.28),
+                      width: isSelected ? 1.4 : 1,
                     ),
+                    boxShadow: isSelected
+                        ? [
+                            BoxShadow(
+                              color: activeTheme.highlightColor.withValues(alpha: 0.45),
+                              blurRadius: 16,
+                              spreadRadius: 1,
+                            ),
+                          ]
+                        : null,
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
