@@ -69,13 +69,21 @@ class _LyricsFullScreenState extends ConsumerState<LyricsFullScreen> {
                             song.title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: AppTextStyles.songTitle.copyWith(fontSize: 15),
+                            style: AppTextStyles.songTitle.copyWith(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.3,
+                            ),
                           ),
                           Text(
                             song.artist,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: AppTextStyles.artistName.copyWith(fontSize: 11.5),
+                            style: AppTextStyles.artistName.copyWith(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white.withValues(alpha: 0.82),
+                            ),
                           ),
                         ],
                       ),

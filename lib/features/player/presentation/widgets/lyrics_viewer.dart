@@ -15,7 +15,7 @@ import 'package:soundwave/shared/providers/theme_provider.dart';
 /// viewer centre the active line with arithmetic (index * extent) instead of
 /// guessing heights, which is what used to make the lyrics drift away from the
 /// centre as the song progressed.
-const double _lineExtent = 68;
+const double _lineExtent = 84;
 
 class LyricsViewer extends ConsumerStatefulWidget {
   /// Fixed height for the inline card. Ignored in full-screen mode.
@@ -181,8 +181,8 @@ class _LyricsViewerState extends ConsumerState<LyricsViewer> {
                   final isActive = index == activeIndex;
                   final isPast = index < activeIndex;
 
-                  final baseSize = widget.fullScreen ? 17.0 : 15.0;
-                  final activeSize = widget.fullScreen ? 24.0 : 20.0;
+                  final baseSize = widget.fullScreen ? 20.0 : 18.0;
+                  final activeSize = widget.fullScreen ? 28.0 : 25.0;
 
                   return GestureDetector(
                     behavior: HitTestBehavior.opaque,
@@ -197,18 +197,66 @@ class _LyricsViewerState extends ConsumerState<LyricsViewer> {
                         tween: Tween<double>(end: isActive ? 1.0 : 0.0),
                         builder: (context, t, _) {
                           final baseColor = isPast
-                              ? Colors.white.withValues(alpha: 0.55)
-                              : Colors.white.withValues(alpha: 0.3);
-                          return Text(
-                            line.text,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: lerpDouble(baseSize, activeSize, t),
-                              fontWeight: t > 0.5 ? FontWeight.w800 : FontWeight.w500,
-                              height: 1.25,
-                              color: Color.lerp(baseColor, activeTheme.primaryAccent, t),
+                              ? Colors.white.withValues(alpha: 0.62)
+                              : Colors.white.withValues(alpha: 0.34);
+                          // The sung line lights up in the theme's brightest
+                          // accent, inside a glowing gradient pill.
+                          final activeColor = Color.lerp(
+                            activeTheme.primaryAccent,
+                            activeTheme.highlightColor,
+                            0.65,
+                          )!;
+                          return Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(20),
+                              gradient: t <= 0.01
+                                  ? null
+                                  : LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [
+                                        activeTheme.primaryAccent.withValues(alpha: 0.28 * t),
+                                        activeTheme.highlightColor.withValues(alpha: 0.18 * t),
+                                      ],
+                                    ),
+                              border: Border.all(
+                                color: activeTheme.highlightColor.withValues(alpha: 0.45 * t),
+                                width: 1,
+                              ),
+                              boxShadow: t <= 0.01
+                                  ? null
+                                  : [
+                                      BoxShadow(
+                                        color: activeTheme.primaryAccent.withValues(alpha: 0.32 * t),
+                                        blurRadius: 18,
+                                        spreadRadius: 1,
+                                      ),
+                                    ],
+                            ),
+                            child: Text(
+                              line.text,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: lerpDouble(baseSize, activeSize, t),
+                                fontWeight: t > 0.5 ? FontWeight.w800 : FontWeight.w600,
+                                height: 1.22,
+                                letterSpacing: -0.3,
+                                color: Color.lerp(baseColor, activeColor, t),
+                                shadows: t <= 0.01
+                                    ? null
+                                    : [
+                                        Shadow(
+                                          color: activeTheme.highlightColor.withValues(alpha: 0.55 * t),
+                                          blurRadius: 16,
+                                        ),
+                                      ],
+                              ),
                             ),
                           );
                         },
@@ -230,25 +278,61 @@ class _LyricsViewerState extends ConsumerState<LyricsViewer> {
     return Container(
       height: widget.height,
       decoration: BoxDecoration(
-        color: activeTheme.primaryBackground.withValues(alpha: 0.85),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: activeTheme.primaryAccent.withValues(alpha: 0.25),
+        color: activeTheme.secondaryBackground.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(28),
+        // Same lifted, colour-washed card as the mini player and Now Playing.
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            activeTheme.primaryAccent.withValues(alpha: 0.30),
+            activeTheme.highlightColor.withValues(alpha: 0.16),
+          ],
         ),
+        border: Border.all(
+          color: activeTheme.highlightColor.withValues(alpha: 0.38),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: activeTheme.primaryAccent.withValues(alpha: 0.26),
+            blurRadius: 26,
+            offset: const Offset(0, 12),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.24),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Column(
         children: [
           // Header Bar
           Padding(
-            padding: const EdgeInsets.only(left: 12, right: 8, top: 6, bottom: 6),
+            padding: const EdgeInsets.only(left: 10, right: 8, top: 9, bottom: 9),
             child: Row(
               children: [
-                Icon(
-                  Icons.mic_external_on_rounded,
-                  color: activeTheme.primaryAccent,
-                  size: 18,
+                Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: activeTheme.accentGradient,
+                    boxShadow: [
+                      BoxShadow(
+                        color: activeTheme.primaryAccent.withValues(alpha: 0.5),
+                        blurRadius: 12,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.mic_external_on_rounded,
+                    color: Colors.white,
+                    size: 17,
+                  ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 9),
                 Expanded(
                   child: Row(
                     children: [
@@ -257,7 +341,11 @@ class _LyricsViewerState extends ConsumerState<LyricsViewer> {
                           'Live Karaoke Lyrics',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: AppTextStyles.cardTitle.copyWith(fontSize: 14),
+                          style: AppTextStyles.cardTitle.copyWith(
+                            fontSize: 15.5,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.2,
+                          ),
                         ),
                       ),
                       if (fromCache) ...[
@@ -331,30 +419,35 @@ class _LyricsViewerState extends ConsumerState<LyricsViewer> {
                   child: GestureDetector(
                     onTap: _openFullScreen,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
                       decoration: BoxDecoration(
-                        color: activeTheme.primaryAccent.withValues(alpha: 0.16),
-                        borderRadius: BorderRadius.circular(8),
+                        gradient: LinearGradient(
+                          colors: [
+                            activeTheme.primaryAccent.withValues(alpha: 0.34),
+                            activeTheme.highlightColor.withValues(alpha: 0.22),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color: activeTheme.primaryAccent.withValues(alpha: 0.45),
-                          width: 0.8,
+                          color: activeTheme.highlightColor.withValues(alpha: 0.55),
+                          width: 1,
                         ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(
+                          const Icon(
                             Icons.open_in_full_rounded,
                             size: 13,
-                            color: activeTheme.primaryAccent,
+                            color: Colors.white,
                           ),
                           const SizedBox(width: 4),
                           Text(
                             'Full screen',
-                            style: TextStyle(
-                              color: activeTheme.primaryAccent,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800,
                             ),
                           ),
                         ],
@@ -365,7 +458,19 @@ class _LyricsViewerState extends ConsumerState<LyricsViewer> {
               ],
             ),
           ),
-          const Divider(height: 1, color: Colors.white10),
+          Container(
+            height: 1,
+            margin: const EdgeInsets.symmetric(horizontal: 10),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.transparent,
+                  activeTheme.highlightColor.withValues(alpha: 0.45),
+                  Colors.transparent,
+                ],
+              ),
+            ),
+          ),
           Expanded(child: body),
         ],
       ),
