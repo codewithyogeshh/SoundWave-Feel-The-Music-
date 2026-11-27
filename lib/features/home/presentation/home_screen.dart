@@ -170,9 +170,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             // 3. Curated Mood & Genre Filter Pills
             SliverToBoxAdapter(
               child: SizedBox(
-                height: 48,
+                height: 56,
                 child: ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
                   scrollDirection: Axis.horizontal,
                   physics: const BouncingScrollPhysics(),
                   itemCount: _genrePills.length,
@@ -198,27 +198,36 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 260),
                           curve: Curves.easeOutCubic,
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          padding: const EdgeInsets.symmetric(horizontal: 18),
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
-                            gradient: isSelected ? activeTheme.primaryGradient : null,
-                            color: isSelected ? null : AppColors.glassWhiteMedium,
-                            borderRadius: BorderRadius.circular(18),
+                            gradient: isSelected ? activeTheme.accentGradient : null,
+                            color: isSelected
+                                ? null
+                                : activeTheme.primaryAccent.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(20),
                             border: Border.all(
                               color: isSelected
-                                  ? activeTheme.highlightColor.withValues(alpha: 0.85)
-                                  : AppColors.glassBorderSubtle,
-                              width: isSelected ? 1.2 : 1,
+                                  ? Colors.white.withValues(alpha: 0.45)
+                                  : activeTheme.primaryAccent.withValues(alpha: 0.28),
+                              width: isSelected ? 1.4 : 1,
                             ),
                             boxShadow: isSelected
                                 ? [
                                     BoxShadow(
-                                      color: activeTheme.primaryAccent.withValues(alpha: 0.38),
-                                      blurRadius: 16,
-                                      offset: const Offset(0, 5),
+                                      color: activeTheme.highlightColor.withValues(alpha: 0.5),
+                                      blurRadius: 20,
+                                      spreadRadius: 1,
+                                      offset: const Offset(0, 6),
                                     ),
                                   ]
-                                : null,
+                                : [
+                                    BoxShadow(
+                                      color: activeTheme.primaryAccent.withValues(alpha: 0.12),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 3),
+                                    ),
+                                  ],
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -234,14 +243,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               Text(
                                 genre,
                                 style: TextStyle(
-                                  fontSize: 12.5,
+                                  fontSize: 13.5,
                                   fontWeight: isSelected
                                       ? FontWeight.w800
-                                      : FontWeight.w500,
+                                      : FontWeight.w600,
                                   color: isSelected
                                       ? selectedTextColor
-                                      : AppColors.textSecondary,
-                                  letterSpacing: isSelected ? -0.1 : 0,
+                                      : Colors.white.withValues(alpha: 0.82),
+                                  letterSpacing: isSelected ? -0.2 : 0,
                                 ),
                               ),
                             ],
@@ -816,7 +825,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       index: 1,
       child: Container(
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      height: 218,
+      height: 238,
       child: GlassCard(
         borderRadius: 30,
         blur: 0,
@@ -825,11 +834,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            activeTheme.secondaryBackground.withValues(alpha: 0.96),
-            activeTheme.primaryBackground.withValues(alpha: 0.88),
+            activeTheme.secondaryBackground.withValues(alpha: 0.98),
+            activeTheme.primaryBackground.withValues(alpha: 0.9),
           ],
         ),
-        borderColor: activeTheme.primaryAccent.withValues(alpha: 0.34),
+        borderColor: activeTheme.highlightColor.withValues(alpha: 0.5),
+        shadows: [
+          BoxShadow(
+            color: activeTheme.primaryAccent.withValues(alpha: 0.4),
+            blurRadius: 28,
+            spreadRadius: 2,
+            offset: const Offset(0, 12),
+          ),
+        ],
         child: Stack(
           children: [
             // Ambient theme glow bleeding out from behind the artwork.
@@ -844,7 +861,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
                       colors: [
-                        activeTheme.primaryAccent.withValues(alpha: 0.34),
+                        activeTheme.primaryAccent.withValues(alpha: 0.5),
                         Colors.transparent,
                       ],
                     ),
@@ -898,14 +915,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: activeTheme.primaryAccent.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: activeTheme.primaryAccent.withValues(alpha: 0.45),
-                              width: 0.8,
-                            ),
+                            gradient: activeTheme.accentGradient,
+                            borderRadius: BorderRadius.circular(9),
+                            boxShadow: [
+                              BoxShadow(
+                                color: activeTheme.highlightColor.withValues(alpha: 0.45),
+                                blurRadius: 14,
+                                spreadRadius: 1,
+                              ),
+                            ],
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -914,38 +934,44 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 isOfflineFallback
                                     ? Icons.offline_pin_rounded
                                     : Icons.bolt_rounded,
-                                color: activeTheme.primaryAccent,
-                                size: 12,
+                                color: Colors.white,
+                                size: 13,
                               ),
                               const SizedBox(width: 4),
                               Text(
                                 badgeText,
-                                style: TextStyle(
-                                  color: activeTheme.primaryAccent,
-                                  fontSize: 9.5,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10.5,
                                   fontWeight: FontWeight.w800,
-                                  letterSpacing: 0.5,
+                                  letterSpacing: 0.6,
                                 ),
                               ),
                             ],
                           ),
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 10),
                         Text(
                           heroSong.title,
-                          maxLines: 1,
+                          maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: AppTextStyles.cardTitle.copyWith(
-                            fontSize: 22,
-                            letterSpacing: -0.4,
+                            fontSize: 25,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.6,
+                            height: 1.12,
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 5),
                         Text(
                           '${heroSong.artist} • ${heroSong.album}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: AppTextStyles.subtitle.copyWith(fontSize: 12),
+                          style: AppTextStyles.subtitle.copyWith(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white.withValues(alpha: 0.78),
+                          ),
                         ),
                       ],
                     ),
