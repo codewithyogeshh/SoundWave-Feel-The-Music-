@@ -53,13 +53,15 @@ class _GlassCardState extends State<GlassCard>
     super.initState();
     _pressController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 120),
+      duration: const Duration(milliseconds: 150),
     );
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.97).animate(
+    // Press sinks quickly and releases with a soft spring, so tapping a card
+    // feels weighted instead of snapping between two sizes.
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.962).animate(
       CurvedAnimation(
         parent: _pressController,
         curve: Curves.easeOutCubic,
-        reverseCurve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeOutBack.flipped,
       ),
     );
   }

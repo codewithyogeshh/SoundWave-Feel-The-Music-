@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:soundwave/app/theme/app_colors.dart';
 import 'package:soundwave/app/theme/theme_model.dart';
+import 'package:soundwave/core/animations/premium_transitions.dart';
 
 class AppTheme {
   static ThemeData get darkTheme => fromType(AppThemeType.midnightOled);
@@ -18,6 +19,16 @@ class AppTheme {
         onPrimary: Colors.white,
         onSecondary: Colors.white,
         onSurface: AppColors.textPrimary,
+      ),
+      // Same fade-through everywhere, including plain Navigator.push screens.
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: PremiumPageTransitionsBuilder(),
+          TargetPlatform.iOS: PremiumPageTransitionsBuilder(),
+          TargetPlatform.macOS: PremiumPageTransitionsBuilder(),
+          TargetPlatform.linux: PremiumPageTransitionsBuilder(),
+          TargetPlatform.windows: PremiumPageTransitionsBuilder(),
+        },
       ),
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.transparent,

@@ -25,8 +25,17 @@ class MainShell extends ConsumerStatefulWidget {
   ConsumerState<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends ConsumerState<MainShell> {
+class _MainShellState extends ConsumerState<MainShell>
+    with SingleTickerProviderStateMixin {
   int _currentIndex = 0;
+
+  /// Plays a short fade-through over the tab stack on every tab change. The
+  /// stack itself stays mounted, so scroll positions and player state survive.
+  late final AnimationController _tabTransition = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 340),
+    value: 1,
+  );
 
   @override
   void initState() {
@@ -238,10 +247,20 @@ class _MainShellState extends ConsumerState<MainShell> {
     );
   }
 
+  @override
+  void dispose() {
+    _tabTransition.dispose();
+    super.dispose();
+  }
+
   void _onTabSelected(int index) {
+    if (index == _currentIndex) return;
     setState(() {
       _currentIndex = index;
     });
+    if (!MediaQuery.disableAnimationsOf(context)) {
+      _tabTransition.forward(from: 0);
+    }
   }
 
   Future<bool> _showExitConfirmationDialog(BuildContext context, AppThemeType theme) async {
@@ -412,9 +431,26 @@ class _MainShellState extends ConsumerState<MainShell> {
       child: Scaffold(
         extendBody: true,
         body: AppBackground(
-          child: IndexedStack(
-            index: _currentIndex,
-            children: screens,
+          child: FadeTransition(
+            opacity: CurvedAnimation(
+              parent: _tabTransition,
+              curve: const Interval(0.0, 0.9, curve: Curves.easeOut),
+            ),
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, 0.014),
+                end: Offset.zero,
+              ).animate(
+                CurvedAnimation(
+                  parent: _tabTransition,
+                  curve: Curves.easeOutCubic,
+                ),
+              ),
+              child: IndexedStack(
+                index: _currentIndex,
+                children: screens,
+              ),
+            ),
           ),
         ),
         bottomNavigationBar: SafeArea(
