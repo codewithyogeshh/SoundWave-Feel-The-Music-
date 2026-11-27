@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:soundwave/app/theme/app_colors.dart';
 import 'package:soundwave/app/theme/theme_model.dart';
-import 'package:soundwave/core/animations/premium_transitions.dart';
+import 'package:soundwave/core/widgets/premium_transitions.dart';
 
 class AppTheme {
   static ThemeData get darkTheme => fromType(AppThemeType.midnightOled);

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:soundwave/app/presentation/main_shell.dart';
-import 'package:soundwave/core/animations/premium_transitions.dart';
+import 'package:soundwave/core/widgets/premium_transitions.dart';
 import 'package:soundwave/features/library/presentation/playlist_detail_screen.dart';
 import 'package:soundwave/features/online/presentation/downloads_screen.dart';
 import 'package:soundwave/features/player/presentation/equalizer_screen.dart';
