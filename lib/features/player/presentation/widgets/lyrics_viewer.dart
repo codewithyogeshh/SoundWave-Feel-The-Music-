@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:soundwave/app/theme/app_colors.dart';
 import 'package:soundwave/app/theme/text_styles.dart';
+import 'package:soundwave/core/widgets/premium_transitions.dart';
 import 'package:soundwave/features/player/presentation/lyrics_full_screen.dart';
 import 'package:soundwave/features/player/services/lyrics_service.dart';
 import 'package:soundwave/shared/providers/player_provider.dart';
@@ -70,10 +71,16 @@ class _LyricsViewerState extends ConsumerState<LyricsViewer> {
       return;
     }
 
+    // Longer jumps glide for longer, so a chorus jump never snaps: the whole
+    // list eases in and out instead of starting and stopping abruptly.
+    final distance = (target - _scrollController.offset).abs();
+    final duration = Duration(
+      milliseconds: (260 + distance * 0.4).clamp(260.0, 620.0).round(),
+    );
     _scrollController.animateTo(
       target,
-      duration: const Duration(milliseconds: 420),
-      curve: Curves.easeOutCubic,
+      duration: duration,
+      curve: Curves.easeInOutCubic,
     );
   }
 
@@ -102,13 +109,18 @@ class _LyricsViewerState extends ConsumerState<LyricsViewer> {
     Navigator.of(context).push(
       PageRouteBuilder<void>(
         opaque: true,
-        transitionDuration: const Duration(milliseconds: 280),
-        reverseTransitionDuration: const Duration(milliseconds: 220),
+        transitionDuration: const Duration(milliseconds: 360),
+        reverseTransitionDuration: const Duration(milliseconds: 280),
         pageBuilder: (_, _, _) => const LyricsFullScreen(),
-        transitionsBuilder: (_, animation, _, child) => FadeTransition(
-          opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
-          child: child,
-        ),
+        // Same fade-through settle as every other page, so the immersive
+        // screen grows out of the card instead of blinking on.
+        transitionsBuilder: (_, animation, secondaryAnimation, child) =>
+            premiumPageTransition(
+              animation,
+              secondaryAnimation,
+              child,
+              begin: const Offset(0, 0.02),
+            ),
       ),
     );
   }
@@ -192,7 +204,7 @@ class _LyricsViewerState extends ConsumerState<LyricsViewer> {
                     },
                     child: Center(
                       child: TweenAnimationBuilder<double>(
-                        duration: const Duration(milliseconds: 300),
+                        duration: const Duration(milliseconds: 380),
                         curve: Curves.easeOutCubic,
                         tween: Tween<double>(end: isActive ? 1.0 : 0.0),
                         builder: (context, t, _) {
@@ -244,7 +256,9 @@ class _LyricsViewerState extends ConsumerState<LyricsViewer> {
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 fontSize: lerpDouble(baseSize, activeSize, t),
-                                fontWeight: t > 0.5 ? FontWeight.w800 : FontWeight.w600,
+                                // One weight throughout: flipping w600 → w800
+                                // mid-tween made the line give a visible jolt.
+                                fontWeight: FontWeight.w700,
                                 height: 1.22,
                                 letterSpacing: -0.3,
                                 color: Color.lerp(baseColor, activeColor, t),
