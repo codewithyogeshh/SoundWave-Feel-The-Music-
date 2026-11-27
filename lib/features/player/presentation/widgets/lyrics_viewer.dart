@@ -16,7 +16,7 @@ import 'package:soundwave/shared/providers/theme_provider.dart';
 /// viewer centre the active line with arithmetic (index * extent) instead of
 /// guessing heights, which is what used to make the lyrics drift away from the
 /// centre as the song progressed.
-const double _lineExtent = 84;
+const double _lineExtent = 94;
 
 class LyricsViewer extends ConsumerStatefulWidget {
   /// Fixed height for the inline card. Ignored in full-screen mode.
@@ -193,8 +193,10 @@ class _LyricsViewerState extends ConsumerState<LyricsViewer> {
                   final isActive = index == activeIndex;
                   final isPast = index < activeIndex;
 
-                  final baseSize = widget.fullScreen ? 20.0 : 18.0;
-                  final activeSize = widget.fullScreen ? 28.0 : 25.0;
+                  // Bigger type throughout: the sung line now carries the
+                  // screen, and the rest still stay readable at arm's length.
+                  final baseSize = widget.fullScreen ? 22.5 : 20.0;
+                  final activeSize = widget.fullScreen ? 32.0 : 28.5;
 
                   return GestureDetector(
                     behavior: HitTestBehavior.opaque,
@@ -209,14 +211,16 @@ class _LyricsViewerState extends ConsumerState<LyricsViewer> {
                         tween: Tween<double>(end: isActive ? 1.0 : 0.0),
                         builder: (context, t, _) {
                           final baseColor = isPast
-                              ? Colors.white.withValues(alpha: 0.62)
-                              : Colors.white.withValues(alpha: 0.34);
+                              ? Colors.white.withValues(alpha: 0.74)
+                              : Colors.white.withValues(alpha: 0.48);
                           // The sung line lights up in the theme's brightest
                           // accent, inside a glowing gradient pill.
+                          // Push the sung line all the way to the theme's
+                          // brightest colour so it pops off the dim lines.
                           final activeColor = Color.lerp(
-                            activeTheme.primaryAccent,
                             activeTheme.highlightColor,
-                            0.65,
+                            Colors.white,
+                            0.35,
                           )!;
                           return Container(
                             padding: const EdgeInsets.symmetric(
@@ -231,20 +235,20 @@ class _LyricsViewerState extends ConsumerState<LyricsViewer> {
                                       begin: Alignment.topLeft,
                                       end: Alignment.bottomRight,
                                       colors: [
-                                        activeTheme.primaryAccent.withValues(alpha: 0.28 * t),
-                                        activeTheme.highlightColor.withValues(alpha: 0.18 * t),
+                                        activeTheme.primaryAccent.withValues(alpha: 0.46 * t),
+                                        activeTheme.highlightColor.withValues(alpha: 0.32 * t),
                                       ],
                                     ),
                               border: Border.all(
-                                color: activeTheme.highlightColor.withValues(alpha: 0.45 * t),
+                                color: activeTheme.highlightColor.withValues(alpha: 0.78 * t),
                                 width: 1,
                               ),
                               boxShadow: t <= 0.01
                                   ? null
                                   : [
                                       BoxShadow(
-                                        color: activeTheme.primaryAccent.withValues(alpha: 0.32 * t),
-                                        blurRadius: 18,
+                                        color: activeTheme.primaryAccent.withValues(alpha: 0.55 * t),
+                                        blurRadius: 26,
                                         spreadRadius: 1,
                                       ),
                                     ],
@@ -266,8 +270,8 @@ class _LyricsViewerState extends ConsumerState<LyricsViewer> {
                                     ? null
                                     : [
                                         Shadow(
-                                          color: activeTheme.highlightColor.withValues(alpha: 0.55 * t),
-                                          blurRadius: 16,
+                                          color: activeTheme.highlightColor.withValues(alpha: 0.8 * t),
+                                          blurRadius: 22,
                                         ),
                                       ],
                               ),
