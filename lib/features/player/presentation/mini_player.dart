@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:soundwave/app/theme/app_colors.dart';
 import 'package:soundwave/app/theme/text_styles.dart';
 import 'package:soundwave/core/widgets/album_artwork.dart';
 import 'package:soundwave/core/widgets/animated_equalizer.dart';
@@ -45,35 +44,38 @@ class MiniPlayer extends ConsumerWidget {
         }
       },
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         child: GlassCard(
-          borderRadius: 24,
-          blur: 24,
-          color: activeTheme.secondaryBackground.withValues(alpha: 0.9),
-          // Lifted, saturated wash so the bar reads like the home-screen widget
+          borderRadius: 30,
+          blur: 26,
+          color: activeTheme.secondaryBackground.withValues(alpha: 0.92),
+          // Lifted, saturated wash so the bar reads like a home-screen widget
           // instead of blending into the page behind it.
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              activeTheme.primaryAccent.withValues(alpha: 0.42),
-              activeTheme.highlightColor.withValues(alpha: 0.22),
+              activeTheme.primaryAccent.withValues(alpha: 0.66),
+              activeTheme.highlightColor.withValues(alpha: 0.4),
+              activeTheme.primaryAccent.withValues(alpha: 0.3),
             ],
+            stops: const [0.0, 0.62, 1.0],
           ),
-          borderColor: activeTheme.highlightColor.withValues(alpha: 0.5),
+          borderColor: activeTheme.highlightColor.withValues(alpha: 0.7),
           shadows: [
             BoxShadow(
-              color: activeTheme.primaryAccent.withValues(alpha: 0.3),
-              blurRadius: 22,
-              offset: const Offset(0, 8),
+              color: activeTheme.primaryAccent.withValues(alpha: 0.45),
+              blurRadius: 30,
+              spreadRadius: 1,
+              offset: const Offset(0, 10),
             ),
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.28),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
+              color: Colors.black.withValues(alpha: 0.34),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
             ),
           ],
-          padding: const EdgeInsets.only(left: 12, right: 12, top: 11, bottom: 10),
+          padding: const EdgeInsets.only(left: 14, right: 12, top: 13, bottom: 12),
           onTap: () {
             Navigator.of(context).push(
               PageRouteBuilder(
@@ -107,37 +109,50 @@ class MiniPlayer extends ConsumerWidget {
             children: [
               Row(
                 children: [
-                  // Round cover with a glowing ring, like the launcher widget.
+                  // Round cover wrapped in a glowing gradient ring, like the
+                  // launcher widget.
                   Hero(
                     tag: 'album_art_${song.id}',
                     child: Container(
-                      padding: const EdgeInsets.all(2),
+                      padding: const EdgeInsets.all(2.5),
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        border: Border.all(
-                          color: activeTheme.highlightColor.withValues(alpha: 0.7),
-                          width: 1.6,
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Colors.white.withValues(alpha: 0.95),
+                            activeTheme.highlightColor,
+                            activeTheme.primaryAccent,
+                          ],
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: activeTheme.primaryAccent.withValues(alpha: 0.4),
-                            blurRadius: 18,
-                            spreadRadius: 1,
+                            color: activeTheme.primaryAccent.withValues(alpha: 0.55),
+                            blurRadius: 24,
+                            spreadRadius: 2,
                           ),
                         ],
                       ),
-                      child: AlbumArtwork(
-                        size: 54,
-                        borderRadius: 27,
-                        artworkUrl: song.artworkPath,
-                        albumId: song.albumId,
-                        songId: song.rawId,
-                        songTitle: song.title,
-                        songArtist: song.artist,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: activeTheme.secondaryBackground,
+                        ),
+                        child: AlbumArtwork(
+                          size: 64,
+                          borderRadius: 32,
+                          artworkUrl: song.artworkPath,
+                          albumId: song.albumId,
+                          songId: song.rawId,
+                          songTitle: song.title,
+                          songArtist: song.artist,
+                        ),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 13),
+                  const SizedBox(width: 15),
                   // Song Title & Artist
                   Expanded(
                     child: Column(
@@ -149,12 +164,13 @@ class MiniPlayer extends ConsumerWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: AppTextStyles.songTitle.copyWith(
-                            fontSize: 16.5,
+                            fontSize: 19,
                             fontWeight: FontWeight.w800,
-                            letterSpacing: -0.2,
+                            letterSpacing: -0.35,
+                            height: 1.15,
                           ),
                         ),
-                        const SizedBox(height: 3),
+                        const SizedBox(height: 4),
                         Row(
                           children: [
                             Flexible(
@@ -163,8 +179,9 @@ class MiniPlayer extends ConsumerWidget {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: AppTextStyles.artistName.copyWith(
-                                  fontSize: 13,
-                                  color: Colors.white.withValues(alpha: 0.82),
+                                  fontSize: 14.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white.withValues(alpha: 0.9),
                                 ),
                               ),
                             ),
@@ -196,8 +213,10 @@ class MiniPlayer extends ConsumerWidget {
                       child: Icon(
                         isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
                         key: ValueKey<bool>(isFav),
-                        color: isFav ? activeTheme.highlightColor : AppColors.textMuted,
-                        size: 22,
+                        color: isFav
+                            ? activeTheme.highlightColor
+                            : Colors.white.withValues(alpha: 0.72),
+                        size: 24,
                       ),
                     ),
                     onPressed: () {
@@ -207,7 +226,7 @@ class MiniPlayer extends ConsumerWidget {
                   ),
                   // Play / Pause Circle with morph animation
                   GradientButton.circle(
-                    size: 46,
+                    size: 54,
                     gradient: activeTheme.accentGradient,
                     glowColor: activeTheme.primaryAccent,
                     onPressed: () {
@@ -244,23 +263,23 @@ class MiniPlayer extends ConsumerWidget {
                             : Icons.play_arrow_rounded,
                         key: ValueKey<bool>(playerState.isPlaying),
                         color: activeTheme.onAccentGradient,
-                        size: 24,
+                        size: 30,
                       ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
               // Gradient progress bar, matching the widget's coloured track
               SizedBox(
-                height: 4,
+                height: 5,
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(5),
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
                       ColoredBox(
-                        color: Colors.white.withValues(alpha: 0.14),
+                        color: Colors.white.withValues(alpha: 0.2),
                       ),
                       Align(
                         alignment: Alignment.centerLeft,
@@ -271,10 +290,17 @@ class MiniPlayer extends ConsumerWidget {
                             decoration: BoxDecoration(
                               gradient: LinearGradient(
                                 colors: [
-                                  activeTheme.primaryAccent,
+                                  Colors.white.withValues(alpha: 0.95),
                                   activeTheme.highlightColor,
+                                  activeTheme.primaryAccent,
                                 ],
                               ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: activeTheme.highlightColor.withValues(alpha: 0.6),
+                                  blurRadius: 8,
+                                ),
+                              ],
                             ),
                           ),
                         ),
