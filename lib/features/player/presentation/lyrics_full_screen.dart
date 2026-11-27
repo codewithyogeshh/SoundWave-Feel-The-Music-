@@ -214,7 +214,7 @@ class _LyricsFullScreenState extends ConsumerState<LyricsFullScreen> {
                           child: IconButton(
                             tooltip: playerState.isPlaying ? 'Pause' : 'Play',
                             iconSize: 30,
-                            color: Colors.white,
+                            color: activeTheme.onAccentGradient,
                             icon: Icon(
                               playerState.isPlaying
                                   ? Icons.pause_rounded

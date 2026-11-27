@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:soundwave/app/theme/app_colors.dart';
+import 'package:soundwave/app/theme/theme_model.dart';
 
 class GradientButton extends StatefulWidget {
   final VoidCallback? onPressed;
@@ -113,6 +114,9 @@ class _GradientButtonState extends State<GradientButton>
   @override
   Widget build(BuildContext context) {
     final effectiveGlowColor = widget.glowColor ?? AppColors.purple;
+    // Dark ink on the bright gold/mint/lilac fills, white on the deep ones, so
+    // a button label never disappears in any of the five themes.
+    final foreground = AppThemeType.readableOn(widget.gradient.colors);
 
     Widget content = widget.child ??
         Row(
@@ -123,9 +127,7 @@ class _GradientButtonState extends State<GradientButton>
               Icon(
                 widget.icon,
                 size: 18,
-                color: widget.text != null && widget.gradient.colors.first == Colors.white
-                    ? Colors.black87
-                    : Colors.white,
+                color: foreground,
               ),
               const SizedBox(width: 6),
             ],
@@ -135,14 +137,19 @@ class _GradientButtonState extends State<GradientButton>
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
-                  color: widget.gradient.colors.first == Colors.white
-                      ? Colors.black87
-                      : Colors.white,
+                  color: foreground,
                   letterSpacing: -0.2,
                 ),
               ),
           ],
         );
+    content = IconTheme(
+      data: IconThemeData(color: foreground),
+      child: DefaultTextStyle.merge(
+        style: TextStyle(color: foreground),
+        child: content,
+      ),
+    );
 
     return GestureDetector(
       onTap: widget.onPressed,

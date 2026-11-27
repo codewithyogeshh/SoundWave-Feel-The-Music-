@@ -805,7 +805,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                             ? Icons.pause_rounded
                             : Icons.play_arrow_rounded,
                         key: ValueKey<bool>(playerState.isPlaying),
-                        color: Colors.white,
+                        color: activeTheme.onAccentGradient,
                         size: 36,
                       ),
                     ),

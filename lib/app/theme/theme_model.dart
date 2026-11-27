@@ -198,6 +198,39 @@ enum AppThemeType {
     );
   }
 
+  /// Near-black ink for white/cream lettering on light fills.
+  static const Color inkOnFill = Color(0xFF090D16);
+
+  static double _contrastRatio(Color a, Color b) {
+    final la = a.computeLuminance();
+    final lb = b.computeLuminance();
+    final hi = la > lb ? la : lb;
+    final lo = la > lb ? lb : la;
+    return (hi + 0.05) / (lo + 0.05);
+  }
+
+  /// Picks black or white text for a filled shape, whichever stays readable
+  /// across every stop of [fills]. Gold, mint and lilac fills get dark ink;
+  /// deep blue, violet and crimson fills keep white, in every theme.
+  static Color readableOn(List<Color> fills) {
+    if (fills.isEmpty) return Colors.white;
+    double worstFor(Color fg) => fills
+        .map((fill) => _contrastRatio(fg, fill))
+        .reduce((a, b) => a < b ? a : b);
+    return worstFor(inkOnFill) >= worstFor(Colors.white)
+        ? inkOnFill
+        : Colors.white;
+  }
+
+  /// Foreground for anything drawn on [primaryAccent].
+  Color get onPrimaryAccent => readableOn([primaryAccent]);
+
+  /// Foreground for anything drawn on [primaryGradient].
+  Color get onPrimaryGradient => readableOn(primaryGradient.colors);
+
+  /// Foreground for anything drawn on [accentGradient].
+  Color get onAccentGradient => readableOn(accentGradient.colors);
+
   List<Color> get swatches => [
         primaryBackground,
         primaryAccent,

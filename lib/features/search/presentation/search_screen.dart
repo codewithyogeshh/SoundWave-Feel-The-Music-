@@ -39,11 +39,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final searchState = ref.watch(searchProvider);
     final searchNotifier = ref.read(searchProvider.notifier);
     final activeTheme = ref.watch(themeProvider);
-    final selectedChipTextColor =
-        activeTheme == AppThemeType.midnightOled ||
-                activeTheme == AppThemeType.emeraldAurora
-            ? const Color(0xFF090D16)
-            : Colors.white;
+    final selectedChipTextColor = activeTheme.onPrimaryAccent;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -73,9 +69,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                               ),
                             ],
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.search_rounded,
-                            color: Colors.white,
+                            color: activeTheme.onAccentGradient,
                             size: 22,
                           ),
                         ),
@@ -132,12 +128,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.bolt_rounded, color: Colors.white, size: 14),
+                        Icon(
+                          Icons.bolt_rounded,
+                          color: activeTheme.onPrimaryGradient,
+                          size: 14,
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           '320 kbps',
                           style: TextStyle(
-                            color: Colors.white,
+                            color: activeTheme.onPrimaryGradient,
                             fontSize: 11,
                             fontWeight: FontWeight.w800,
                           ),

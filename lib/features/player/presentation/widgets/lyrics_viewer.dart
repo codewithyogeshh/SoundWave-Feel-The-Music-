@@ -326,9 +326,9 @@ class _LyricsViewerState extends ConsumerState<LyricsViewer> {
                       ),
                     ],
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.mic_external_on_rounded,
-                    color: Colors.white,
+                    color: activeTheme.onAccentGradient,
                     size: 17,
                   ),
                 ),

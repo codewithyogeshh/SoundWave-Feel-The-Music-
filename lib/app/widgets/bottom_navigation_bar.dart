@@ -51,11 +51,7 @@ class FloatingBottomNavBar extends ConsumerWidget {
     bool reduceMotion,
   ) {
     final isSelected = index == currentIndex;
-    final selectedForeground =
-        activeTheme == AppThemeType.midnightOled ||
-                activeTheme == AppThemeType.emeraldAurora
-            ? const Color(0xFF090D16)
-            : Colors.white;
+    final selectedForeground = activeTheme.onPrimaryGradient;
 
     return Semantics(
       button: true,

@@ -204,13 +204,19 @@ class EqualizerScreen extends ConsumerWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (isSelected) ...[
-                        const Icon(Icons.check_rounded, color: Colors.white, size: 14),
+                        Icon(
+                          Icons.check_rounded,
+                          color: activeTheme.onAccentGradient,
+                          size: 14,
+                        ),
                         const SizedBox(width: 4),
                       ],
                       Text(
                         preset,
                         style: TextStyle(
-                          color: isSelected ? Colors.white : AppColors.textSecondary,
+                          color: isSelected
+                              ? activeTheme.onAccentGradient
+                              : AppColors.textSecondary,
                           fontSize: 12,
                           fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                         ),

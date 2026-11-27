@@ -180,11 +180,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   itemBuilder: (context, index) {
                     final genre = _genrePills[index];
                     final isSelected = genre == _selectedGenre;
-                    final selectedTextColor =
-                        activeTheme == AppThemeType.midnightOled ||
-                                activeTheme == AppThemeType.emeraldAurora
-                            ? const Color(0xFF090D16)
-                            : Colors.white;
+                    final selectedTextColor = activeTheme.onAccentGradient;
                     return Reveal(
                       index: index,
                       duration: const Duration(milliseconds: 420),
@@ -636,9 +632,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                 ],
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.graphic_eq_rounded,
-                color: Colors.white,
+                color: activeTheme.onPrimaryGradient,
                 size: 24,
               ),
             ),
@@ -934,14 +930,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 isOfflineFallback
                                     ? Icons.offline_pin_rounded
                                     : Icons.bolt_rounded,
-                                color: Colors.white,
+                                color: activeTheme.onAccentGradient,
                                 size: 13,
                               ),
                               const SizedBox(width: 4),
                               Text(
                                 badgeText,
-                                style: const TextStyle(
-                                  color: Colors.white,
+                                style: TextStyle(
+                                  color: activeTheme.onAccentGradient,
                                   fontSize: 10.5,
                                   fontWeight: FontWeight.w800,
                                   letterSpacing: 0.6,

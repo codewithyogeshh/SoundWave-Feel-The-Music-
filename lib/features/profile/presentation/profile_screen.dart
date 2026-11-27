@@ -76,7 +76,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         ),
                       ],
                     ),
-                    child: const Icon(Icons.person_rounded, color: Colors.white, size: 24),
+                    child: Icon(
+                      Icons.person_rounded,
+                      color: currentTheme.onPrimaryGradient,
+                      size: 24,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -242,12 +246,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                 ),
                               ],
                             ),
-                            child: const Text(
+                            child: Text(
                               'Offline Music Player Active',
                               style: TextStyle(
                                 fontSize: 10.5,
                                 fontWeight: FontWeight.w800,
-                                color: Colors.white,
+                                color: currentTheme.onAccentGradient,
                               ),
                             ),
                           ),
@@ -780,7 +784,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
               ],
             ),
-            child: Icon(icon, color: Colors.white, size: 21),
+            child: Icon(
+              icon,
+              color: AppThemeType.readableOn(gradient.colors),
+              size: 21,
+            ),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -1110,7 +1118,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
               ],
             ),
-            child: Icon(icon, color: Colors.white, size: 20),
+            child: Icon(
+              icon,
+              color: AppThemeType.readableOn([iconColor]),
+              size: 20,
+            ),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -1191,7 +1203,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
               ],
             ),
-            child: Icon(icon, color: Colors.white, size: 20),
+            child: Icon(
+              icon,
+              color: AppThemeType.readableOn([iconColor]),
+              size: 20,
+            ),
           ),
           const SizedBox(width: 14),
           Expanded(

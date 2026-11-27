@@ -79,9 +79,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                               ),
                             ],
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.library_music_rounded,
-                            color: Colors.white,
+                            color: activeTheme.onPrimaryGradient,
                             size: 22,
                           ),
                         ),
@@ -145,7 +145,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                         gradient: activeTheme.accentGradient,
                         glowColor: activeTheme.primaryAccent,
                         onPressed: () => _showCreatePlaylistDialog(context),
-                        child: const Icon(Icons.add_rounded, color: Colors.white, size: 22),
+                        child: Icon(
+                          Icons.add_rounded,
+                          color: activeTheme.onAccentGradient,
+                          size: 22,
+                        ),
                       ),
                     ],
                   ),

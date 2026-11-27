@@ -112,9 +112,9 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                                 ),
                               ],
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.explore_rounded,
-                              color: Colors.white,
+                              color: activeTheme.onAccentGradient,
                               size: 24,
                             ),
                           ),
@@ -174,9 +174,9 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                             ),
                           ],
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.search_rounded,
-                          color: Colors.white,
+                          color: activeTheme.onPrimaryGradient,
                           size: 22,
                         ),
                       ),
@@ -322,10 +322,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
     bool isSelected,
     AppThemeType activeTheme,
   ) {
-    final selectedFg = activeTheme == AppThemeType.midnightOled ||
-            activeTheme == AppThemeType.emeraldAurora
-        ? const Color(0xFF090D16)
-        : Colors.white;
+    final selectedFg = activeTheme.onPrimaryGradient;
 
     return GestureDetector(
       onTap: () {
