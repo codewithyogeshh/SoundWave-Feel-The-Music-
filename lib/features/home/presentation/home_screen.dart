@@ -170,9 +170,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             // 3. Curated Mood & Genre Filter Pills
             SliverToBoxAdapter(
               child: SizedBox(
-                height: 56,
+                height: 64,
                 child: ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 7),
                   scrollDirection: Axis.horizontal,
                   physics: const BouncingScrollPhysics(),
                   itemCount: _genrePills.length,
@@ -194,34 +194,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 260),
                           curve: Curves.easeOutCubic,
-                          padding: const EdgeInsets.symmetric(horizontal: 18),
+                          padding: const EdgeInsets.symmetric(horizontal: 21),
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
                             gradient: isSelected ? activeTheme.accentGradient : null,
                             color: isSelected
                                 ? null
-                                : activeTheme.primaryAccent.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(20),
+                                : activeTheme.primaryAccent.withValues(alpha: 0.17),
+                            borderRadius: BorderRadius.circular(22),
                             border: Border.all(
                               color: isSelected
-                                  ? Colors.white.withValues(alpha: 0.45)
-                                  : activeTheme.primaryAccent.withValues(alpha: 0.28),
-                              width: isSelected ? 1.4 : 1,
+                                  ? Colors.white.withValues(alpha: 0.62)
+                                  : activeTheme.primaryAccent.withValues(alpha: 0.42),
+                              width: isSelected ? 1.6 : 1.2,
                             ),
                             boxShadow: isSelected
                                 ? [
                                     BoxShadow(
-                                      color: activeTheme.highlightColor.withValues(alpha: 0.5),
-                                      blurRadius: 20,
-                                      spreadRadius: 1,
-                                      offset: const Offset(0, 6),
+                                      color: activeTheme.highlightColor.withValues(alpha: 0.68),
+                                      blurRadius: 26,
+                                      spreadRadius: 2,
+                                      offset: const Offset(0, 8),
                                     ),
                                   ]
                                 : [
                                     BoxShadow(
-                                      color: activeTheme.primaryAccent.withValues(alpha: 0.12),
-                                      blurRadius: 10,
-                                      offset: const Offset(0, 3),
+                                      color: activeTheme.primaryAccent.withValues(alpha: 0.2),
+                                      blurRadius: 12,
+                                      offset: const Offset(0, 4),
                                     ),
                                   ],
                           ),
@@ -231,21 +231,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               if (isSelected) ...[
                                 Icon(
                                   Icons.bolt_rounded,
-                                  size: 13,
+                                  size: 15,
                                   color: selectedTextColor,
                                 ),
-                                const SizedBox(width: 4),
+                                const SizedBox(width: 5),
                               ],
                               Text(
                                 genre,
                                 style: TextStyle(
-                                  fontSize: 13.5,
+                                  fontSize: 15.5,
                                   fontWeight: isSelected
                                       ? FontWeight.w800
-                                      : FontWeight.w600,
+                                      : FontWeight.w700,
                                   color: isSelected
                                       ? selectedTextColor
-                                      : Colors.white.withValues(alpha: 0.82),
+                                      : Colors.white.withValues(alpha: 0.95),
                                   letterSpacing: isSelected ? -0.2 : 0,
                                 ),
                               ),
@@ -821,26 +821,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       index: 1,
       child: Container(
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      height: 238,
+      height: 252,
       child: GlassCard(
-        borderRadius: 30,
+        borderRadius: 32,
         blur: 0,
         padding: EdgeInsets.zero,
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
+            activeTheme.primaryAccent.withValues(alpha: 0.5),
             activeTheme.secondaryBackground.withValues(alpha: 0.98),
-            activeTheme.primaryBackground.withValues(alpha: 0.9),
+            activeTheme.primaryBackground.withValues(alpha: 0.94),
           ],
+          stops: const [0.0, 0.55, 1.0],
         ),
-        borderColor: activeTheme.highlightColor.withValues(alpha: 0.5),
+        borderColor: activeTheme.highlightColor.withValues(alpha: 0.68),
         shadows: [
           BoxShadow(
-            color: activeTheme.primaryAccent.withValues(alpha: 0.4),
-            blurRadius: 28,
-            spreadRadius: 2,
-            offset: const Offset(0, 12),
+            color: activeTheme.primaryAccent.withValues(alpha: 0.55),
+            blurRadius: 34,
+            spreadRadius: 3,
+            offset: const Offset(0, 14),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
           ),
         ],
         child: Stack(
@@ -857,9 +864,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
                       colors: [
-                        activeTheme.primaryAccent.withValues(alpha: 0.5),
+                        activeTheme.primaryAccent.withValues(alpha: 0.72),
+                        activeTheme.highlightColor.withValues(alpha: 0.28),
                         Colors.transparent,
                       ],
+                      stops: const [0.0, 0.55, 1.0],
                     ),
                   ),
                 ),
@@ -911,15 +920,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                           decoration: BoxDecoration(
                             gradient: activeTheme.accentGradient,
-                            borderRadius: BorderRadius.circular(9),
+                            borderRadius: BorderRadius.circular(10),
                             boxShadow: [
                               BoxShadow(
-                                color: activeTheme.highlightColor.withValues(alpha: 0.45),
-                                blurRadius: 14,
-                                spreadRadius: 1,
+                                color: activeTheme.highlightColor.withValues(alpha: 0.6),
+                                blurRadius: 18,
+                                spreadRadius: 2,
                               ),
                             ],
                           ),
@@ -931,42 +940,49 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                     ? Icons.offline_pin_rounded
                                     : Icons.bolt_rounded,
                                 color: activeTheme.onAccentGradient,
-                                size: 13,
+                                size: 15,
                               ),
-                              const SizedBox(width: 4),
+                              const SizedBox(width: 5),
                               Text(
                                 badgeText,
                                 style: TextStyle(
                                   color: activeTheme.onAccentGradient,
-                                  fontSize: 10.5,
+                                  fontSize: 11.5,
                                   fontWeight: FontWeight.w800,
-                                  letterSpacing: 0.6,
+                                  letterSpacing: 0.7,
                                 ),
                               ),
                             ],
                           ),
                         ),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 12),
                         Text(
                           heroSong.title,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: AppTextStyles.cardTitle.copyWith(
-                            fontSize: 25,
+                            fontSize: 30,
                             fontWeight: FontWeight.w800,
-                            letterSpacing: -0.6,
-                            height: 1.12,
+                            letterSpacing: -0.9,
+                            height: 1.08,
+                            shadows: [
+                              Shadow(
+                                color: Colors.black.withValues(alpha: 0.45),
+                                blurRadius: 12,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 5),
+                        const SizedBox(height: 7),
                         Text(
                           '${heroSong.artist} • ${heroSong.album}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: AppTextStyles.subtitle.copyWith(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white.withValues(alpha: 0.78),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white.withValues(alpha: 0.92),
                           ),
                         ),
                       ],
@@ -992,23 +1008,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             showDownloadOptionsSheet(context, heroSong);
                           },
                           child: Container(
-                            width: 42,
-                            height: 42,
+                            width: 46,
+                            height: 46,
                             decoration: BoxDecoration(
                               color: AppColors.glassWhiteMedium,
                               shape: BoxShape.circle,
                               border: Border.all(
-                                color: activeTheme.primaryAccent.withValues(alpha: 0.4),
+                                color: activeTheme.primaryAccent.withValues(alpha: 0.6),
                               ),
                             ),
                             child: Icon(
                               downloadedMatch != null
                                   ? Icons.check_circle_rounded
                                   : Icons.arrow_circle_down_rounded,
-                              color: downloadedMatch != null
-                                  ? Colors.greenAccent
-                                  : activeTheme.primaryAccent,
-                              size: 22,
+                                                              color: downloadedMatch != null
+                                    ? Colors.greenAccent
+                                    : activeTheme.primaryAccent,
+                                size: 25,
                             ),
                           ),
                         ),
