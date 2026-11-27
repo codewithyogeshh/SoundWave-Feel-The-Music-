@@ -789,17 +789,30 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                   onTap: () =>
                       ref.read(playerProvider.notifier).togglePlayPause(),
                   child: Center(
+                    // Same turn-in / turn-out morph as the mini player, one
+                    // step bigger so the main control feels weightier.
                     child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 200),
-                      transitionBuilder: (child, animation) => ScaleTransition(
-                        scale: Tween<double>(begin: 0.8, end: 1.0).animate(
-                          CurvedAnimation(
-                            parent: animation,
-                            curve: Curves.easeOutBack,
+                      duration: const Duration(milliseconds: 280),
+                      switchInCurve: Curves.easeOutCubic,
+                      switchOutCurve: Curves.easeInCubic,
+                      transitionBuilder: (child, animation) {
+                        final curved = CurvedAnimation(
+                          parent: animation,
+                          curve: Curves.easeOutBack,
+                        );
+                        return FadeTransition(
+                          opacity: animation,
+                          child: RotationTransition(
+                            turns: Tween<double>(begin: -0.16, end: 0.0)
+                                .animate(curved),
+                            child: ScaleTransition(
+                              scale: Tween<double>(begin: 0.55, end: 1.0)
+                                  .animate(curved),
+                              child: child,
+                            ),
                           ),
-                        ),
-                        child: FadeTransition(opacity: animation, child: child),
-                      ),
+                        );
+                      },
                       child: Icon(
                         playerState.isPlaying
                             ? Icons.pause_rounded

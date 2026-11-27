@@ -83,7 +83,27 @@ class AlbumArtwork extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            imageContent,
+            // A new cover fades in over the old one instead of popping. The
+            // key follows the artwork identity, so the switch only fires when
+            // the song actually changes (not on every rebuild).
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 380),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              transitionBuilder: (child, animation) => FadeTransition(
+                opacity: animation,
+                child: ScaleTransition(
+                  scale: Tween<double>(begin: 0.94, end: 1.0).animate(animation),
+                  child: child,
+                ),
+              ),
+              child: KeyedSubtree(
+                key: ValueKey(
+                  'art_${artworkUrl ?? ''}_${albumId ?? 0}_${songId ?? 0}',
+                ),
+                child: imageContent,
+              ),
+            ),
             ?overlay,
           ],
         ),
