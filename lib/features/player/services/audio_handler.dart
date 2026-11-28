@@ -541,11 +541,20 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
       if (track.sourceType == AudioSourceType.asset) {
         source = AudioSource.asset(track.audioPath);
       } else if (track.sourceType == AudioSourceType.file) {
-        if (!kIsWeb && !File(track.audioPath).existsSync()) {
-          debugPrint('Offline audio file missing: ${track.audioPath}');
-          return;
+        if (track.audioPath.startsWith('content://')) {
+          // Songs saved to the phone's Music/SoundWave folder are owned by
+          // Android's media database, so they are played through their URI.
+          source = AudioSource.uri(
+            Uri.parse(track.audioPath),
+            tag: finalMediaItem,
+          );
+        } else {
+          if (!kIsWeb && !File(track.audioPath).existsSync()) {
+            debugPrint('Offline audio file missing: ${track.audioPath}');
+            return;
+          }
+          source = AudioSource.file(track.audioPath);
         }
-        source = AudioSource.file(track.audioPath);
       } else {
         if (track.audioPath.isEmpty) return;
         source = AudioSource.uri(

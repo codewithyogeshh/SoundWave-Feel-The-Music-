@@ -316,7 +316,8 @@ class PlayerNotifier extends Notifier<PlayerState> {
           .firstOrNull;
       if (offline != null &&
           offline.audioPath.isNotEmpty &&
-          File(offline.audioPath).existsSync()) {
+          (offline.audioPath.startsWith('content://') ||
+              File(offline.audioPath).existsSync())) {
         if ((offline.artworkPath == null || offline.artworkPath!.isEmpty) &&
             candidate.artworkPath != null &&
             candidate.artworkPath!.isNotEmpty) {
@@ -691,6 +692,7 @@ class PlayerNotifier extends Notifier<PlayerState> {
       // Skip dead local files so a deleted song never blocks startup.
       if (song.sourceType == AudioSourceType.file &&
           !kIsWeb &&
+          !song.audioPath.startsWith('content://') &&
           !File(song.audioPath).existsSync()) {
         return;
       }

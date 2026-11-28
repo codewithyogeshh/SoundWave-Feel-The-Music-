@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -176,23 +177,61 @@ class DownloadService {
     return null;
   }
 
-  /// Whether SoundWave may write into the shared Music folder.
+  /// Bridge to Android's MediaStore, which owns the shared Music folder.
+  static const MethodChannel _mediaChannel = MethodChannel(
+    'soundwave/media_store',
+  );
+
+  /// File extension that matches the audio the CDN actually serves.
+  static String _audioExtension(String url) {
+    final lower = url.toLowerCase();
+    if (lower.contains('.mp3')) return 'mp3';
+    return 'm4a';
+  }
+
+  static Future<Map<Object?, Object?>?> _callSaveToMusic(
+    File file,
+    String displayName,
+    String mime,
+  ) {
+    return _mediaChannel.invokeMethod<Map<Object?, Object?>>('saveToMusic', {
+      'path': file.path,
+      'name': displayName,
+      'mime': mime,
+    });
+  }
+
+  /// Adds [file] to the phone's shared Music/SoundWave folder without asking
+  /// for "All files access": Android 10+ lets the app hand the song to
+  /// MediaStore, which is how the folder is meant to be written nowadays.
   ///
-  /// Android 11+ (API 30+) blocked direct writes to public folders, so the
-  /// "All files access" permission is required there; older Android versions
-  /// still use the classic storage permission.
-  static Future<bool> _ensurePublicStorageAccess() async {
-    if (!Platform.isAndroid) return true;
+  /// Returns the location SoundWave should use to play it back later — a
+  /// MediaStore URI on Android 10+, a plain file path on older releases.
+  static Future<String?> _importToMusic(
+    File file, {
+    required String displayName,
+    required String mime,
+  }) async {
+    if (!Platform.isAndroid) return file.path;
     try {
-      if (await Permission.manageExternalStorage.isGranted) return true;
-      if ((await Permission.manageExternalStorage.request()).isGranted) {
-        return true;
+      Map<Object?, Object?>? saved;
+      try {
+        saved = await _callSaveToMusic(file, displayName, mime);
+      } on PlatformException catch (error) {
+        // Android 9 and older still need the classic storage permission.
+        if (error.code != 'permission_denied') rethrow;
+        final granted = (await Permission.storage.request()).isGranted;
+        if (!granted) return null;
+        saved = await _callSaveToMusic(file, displayName, mime);
       }
-      if (await Permission.storage.isGranted) return true;
-      return (await Permission.storage.request()).isGranted;
-    } catch (e) {
-      debugPrint('Storage permission check failed: $e');
-      return false;
+      final uri = saved?['uri'] as String?;
+      if (uri != null && uri.isNotEmpty) return uri;
+      final path = saved?['path'] as String?;
+      if (path != null && path.isNotEmpty) return path;
+      return null;
+    } catch (error) {
+      debugPrint('Saving to Music/SoundWave failed: $error');
+      return null;
     }
   }
 
@@ -248,41 +287,26 @@ class DownloadService {
         );
       }
 
-      // 2. Phone storage needs write access to the shared Music folder
-      if (destination == DownloadDestination.phoneStorage) {
-        final allowed = await _ensurePublicStorageAccess();
-        if (!allowed) {
-          return const DownloadResult(
-            success: false,
-            error:
-                'Phone storage blocked. Allow "All files access" for SoundWave, '
-                'or switch Downloads to "Inside SoundWave".',
-          );
-        }
-      }
-
-      // 3. Determine target directory and file name
-      Directory? targetDir;
-      String fileName;
+      // 2. Decide where the finished song should end up.
+      final bool toPhone = destination == DownloadDestination.phoneStorage;
       final cleanTitle = _sanitizeFileName(sourceSong.title);
       final cleanArtist = _sanitizeFileName(sourceSong.artist);
       final cleanId = sanitizeIdForFile(sourceSong.id);
+      final safeTitle = cleanTitle.isEmpty ? cleanId : cleanTitle;
+      final safeArtist = cleanArtist.isEmpty ? 'SoundWave' : cleanArtist;
+      final String extension = _audioExtension(streamUrl);
+      final String displayName = '$safeTitle - $safeArtist.$extension';
+      final String mime = extension == 'mp3' ? 'audio/mpeg' : 'audio/mp4';
 
-      if (destination == DownloadDestination.inApp) {
-        targetDir = await getInAppDirectory();
-        fileName = '${cleanId}_320k.m4a';
-      } else {
-        targetDir = await getPublicStorageDirectory();
-        if (targetDir == null) {
-          return const DownloadResult(
-            success: false,
-            error: 'Phone storage (Music/SoundWave) is not available on this device',
-          );
-        }
-        final safeTitle = cleanTitle.isEmpty ? cleanId : cleanTitle;
-        final safeArtist = cleanArtist.isEmpty ? 'SoundWave' : cleanArtist;
-        fileName = '$safeTitle - $safeArtist.mp3';
-      }
+      // 3. Phone storage downloads are written to a temporary file first and
+      // then handed to MediaStore, so the song shows up in Music/SoundWave
+      // without the heavy "All files access" permission.
+      final Directory targetDir = toPhone
+          ? await getTemporaryDirectory()
+          : await getInAppDirectory();
+      final String fileName = toPhone
+          ? 'sw_import_$cleanId.$extension'
+          : '${cleanId}_320k.m4a';
 
       targetFile = File('${targetDir.path}/$fileName');
 
@@ -336,10 +360,30 @@ class DownloadService {
 
       onProgress?.call(1.0);
 
-      // 6. Build offline SongModel pointing to local audio & local banner file
+      // 6. Hand phone-storage downloads to the shared Music folder.
+      String savedPath = targetFile.path;
+      if (toPhone) {
+        final imported = await _importToMusic(
+          targetFile,
+          displayName: displayName,
+          mime: mime,
+        );
+        if (imported == null) {
+          return const DownloadResult(
+            success: false,
+            error: 'Could not add the song to Music/SoundWave',
+          );
+        }
+        savedPath = imported;
+        try {
+          await targetFile.delete();
+        } catch (_) {}
+      }
+
+      // 7. Build offline SongModel pointing to local audio & local banner file
       final downloadedSong = sourceSong.copyWith(
         id: sourceSong.id,
-        audioPath: targetFile.path,
+        audioPath: savedPath,
         sourceType: AudioSourceType.file,
         artworkPath: localArtPath ?? sourceSong.artworkPath,
         isLocal: true,
@@ -348,7 +392,7 @@ class DownloadService {
 
       return DownloadResult(
         success: true,
-        savedPath: targetFile.path,
+        savedPath: savedPath,
         downloadedSong: downloadedSong,
       );
     } catch (e) {
@@ -370,8 +414,18 @@ class DownloadService {
   /// Remove downloaded song file and its cached offline cover banner from storage
   static Future<bool> deleteDownload(SongModel song) async {
     try {
-      if (song.audioPath.isNotEmpty && File(song.audioPath).existsSync()) {
-        await File(song.audioPath).delete();
+      final audioPath = song.audioPath.trim();
+      if (audioPath.startsWith('content://')) {
+        // Song lives in the shared Music folder; Android owns the file.
+        try {
+          await _mediaChannel.invokeMethod<bool>('deleteSaved', {
+            'uri': audioPath,
+          });
+        } catch (e) {
+          debugPrint('Could not remove the Music folder copy: $e');
+        }
+      } else if (audioPath.isNotEmpty && File(audioPath).existsSync()) {
+        await File(audioPath).delete();
       }
 
       final artPath = song.artworkPath?.trim();

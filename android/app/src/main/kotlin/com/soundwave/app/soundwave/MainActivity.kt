@@ -1,10 +1,13 @@
 package com.soundwave.app.soundwave
 
 import android.content.ClipData
+import android.content.ContentValues
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.provider.MediaStore
 import android.provider.Settings
 import androidx.core.content.FileProvider
 import com.ryanheise.audioservice.AudioServiceActivity
@@ -192,6 +195,124 @@ class MainActivity : AudioServiceActivity() {
                     else -> result.notImplemented()
                 }
             }
+
+        // Used when Downloads are set to "Phone storage": the song lands in the
+        // shared Music/SoundWave folder and stays playable inside SoundWave.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "soundwave/media_store")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "saveToMusic" -> {
+                        val path = call.argument<String>("path")
+                        val name = call.argument<String>("name")
+                        val mime = call.argument<String>("mime") ?: "audio/mp4"
+                        val source = if (path.isNullOrEmpty()) null else File(path)
+                        if (source == null || !source.exists() || name.isNullOrEmpty()) {
+                            result.error(
+                                "missing_file",
+                                "The downloaded song could not be found.",
+                                null,
+                            )
+                            return@setMethodCallHandler
+                        }
+                        Thread {
+                            try {
+                                val saved = saveToMusic(source, name, mime)
+                                runOnUiThread { result.success(saved) }
+                            } catch (error: SecurityException) {
+                                runOnUiThread {
+                                    result.error("permission_denied", error.message, null)
+                                }
+                            } catch (error: Exception) {
+                                runOnUiThread {
+                                    result.error("save_failed", error.message, null)
+                                }
+                            }
+                        }.start()
+                    }
+
+                    "deleteSaved" -> Thread {
+                        try {
+                            val removed = deleteSavedMusic(
+                                call.argument<String>("uri"),
+                                call.argument<String>("path"),
+                            )
+                            runOnUiThread { result.success(removed) }
+                        } catch (error: Exception) {
+                            runOnUiThread { result.success(false) }
+                        }
+                    }.start()
+
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    /**
+     * Copies a finished download into the phone's shared Music/SoundWave folder.
+     *
+     * Android 10+ owns that folder through MediaStore, so the app can add a song
+     * there without asking for the heavy "All files access" permission. Older
+     * releases still write the file directly.
+     */
+    private fun saveToMusic(source: File, displayName: String, mime: String): Map<String, Any?> {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val resolver = contentResolver
+            val collection = MediaStore.Audio.Media.getContentUri(
+                MediaStore.VOLUME_EXTERNAL_PRIMARY,
+            )
+            val values = ContentValues().apply {
+                put(MediaStore.Audio.Media.DISPLAY_NAME, displayName)
+                put(MediaStore.Audio.Media.MIME_TYPE, mime)
+                put(
+                    MediaStore.Audio.Media.RELATIVE_PATH,
+                    Environment.DIRECTORY_MUSIC + "/SoundWave",
+                )
+                put(MediaStore.Audio.Media.IS_PENDING, 1)
+            }
+            val uri = resolver.insert(collection, values)
+                ?: throw IllegalStateException("The Music folder refused the new song")
+            try {
+                resolver.openOutputStream(uri)?.use { output ->
+                    source.inputStream().use { input -> input.copyTo(output) }
+                } ?: throw IllegalStateException("Could not open the new song file")
+                val publish = ContentValues().apply {
+                    put(MediaStore.Audio.Media.IS_PENDING, 0)
+                }
+                resolver.update(uri, publish, null, null)
+            } catch (error: Exception) {
+                try {
+                    resolver.delete(uri, null, null)
+                } catch (_: Exception) {
+                }
+                throw error
+            }
+            return mapOf("uri" to uri.toString(), "path" to null)
+        }
+
+        val dir = File(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC),
+            "SoundWave",
+        )
+        if (!dir.exists() && !dir.mkdirs()) {
+            throw IllegalStateException("Could not create the Music/SoundWave folder")
+        }
+        val target = File(dir, displayName)
+        source.inputStream().use { input ->
+            FileOutputStream(target).use { output -> input.copyTo(output) }
+        }
+        return mapOf("uri" to null, "path" to target.absolutePath)
+    }
+
+    /** Removes a song this app added to the shared Music folder. */
+    private fun deleteSavedMusic(uriString: String?, path: String?): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !uriString.isNullOrEmpty()) {
+            return contentResolver.delete(Uri.parse(uriString), null, null) > 0
+        }
+        if (!path.isNullOrEmpty()) {
+            val file = File(path)
+            return file.exists() && file.delete()
+        }
+        return false
     }
 
     override fun onDestroy() {

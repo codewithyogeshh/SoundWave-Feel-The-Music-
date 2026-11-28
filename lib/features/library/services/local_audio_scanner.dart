@@ -56,6 +56,9 @@ class LocalAudioScanner {
         for (final s in songs) {
           final path = s.data.trim();
           if (path.isEmpty || seenPaths.contains(path)) continue;
+          // Songs SoundWave downloaded to phone storage already appear in the
+          // Downloads tab; listing them as device music too would duplicate.
+          if (path.contains('/Music/SoundWave/')) continue;
 
           final rawTitle = s.title.trim();
           final displayTitle = rawTitle.isNotEmpty ? rawTitle : 'Track ${s.id}';
