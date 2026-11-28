@@ -17,6 +17,7 @@ import 'package:soundwave/shared/providers/library_provider.dart';
 import 'package:soundwave/shared/providers/player_provider.dart';
 import 'package:soundwave/shared/providers/search_provider.dart';
 import 'package:soundwave/shared/providers/theme_provider.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -29,6 +30,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   final ScrollController _resultsScroll = ScrollController();
+
+  /// Voice search: speak a song/artist name and it lands in the search box.
+  final SpeechToText _speech = SpeechToText();
+  bool _isListening = false;
 
   @override
   void initState() {
@@ -50,9 +55,105 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   void dispose() {
     _resultsScroll.removeListener(_onResultsScroll);
     _resultsScroll.dispose();
+    _speech.cancel();
     _searchController.dispose();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  /// Picks the phone's own Marathi/Hindi/English (India) speech model when it
+  /// has one, so spoken Marathi and Hindi song names are recognised properly.
+  Future<String?> _voiceLocale() async {
+    try {
+      final locales = await _speech.locales();
+      for (final prefix in const ['mr', 'hi', 'gu', 'pa', 'ta', 'te', 'kn', 'bn', 'ml', 'en_in']) {
+        for (final locale in locales) {
+          final id = locale.localeId.toLowerCase().replaceAll('-', '_');
+          if (id == prefix || id.startsWith('${prefix}_')) return locale.localeId;
+        }
+      }
+    } catch (_) {
+      // Fall back to the phone's default language.
+    }
+    return null;
+  }
+
+  void _showVoiceMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+  }
+
+  Future<void> _toggleVoiceSearch() async {
+    if (_isListening) {
+      await _speech.stop();
+      if (mounted) setState(() => _isListening = false);
+      return;
+    }
+
+    HapticFeedback.mediumImpact();
+    final searchNotifier = ref.read(searchProvider.notifier);
+    try {
+      final available = await _speech.initialize(
+        onStatus: (status) {
+          if (!mounted) return;
+          if (status == 'done' || status == 'notListening') {
+            setState(() => _isListening = false);
+          }
+        },
+        onError: (error) {
+          if (!mounted) return;
+          setState(() => _isListening = false);
+          _showVoiceMessage(
+            error.errorMsg == 'error_no_match'
+                ? 'काही समजलं नाही, पुन्हा प्रयत्न करा.'
+                : 'आवाज ऐकता आला नाही. माइक्रोफोनची परवानगी दिली आहे का ते पहा.',
+          );
+        },
+      );
+
+      if (!available) {
+        _showVoiceMessage(
+          'या फोनवर व्हॉइस शोध उपलब्ध नाही. फोनच्या सेटिंग्जमध्ये Google व्हॉइस सेवा चालू करा.',
+        );
+        return;
+      }
+
+      final localeId = await _voiceLocale();
+      if (!mounted) return;
+      setState(() => _isListening = true);
+
+      await _speech.listen(
+        localeId: localeId,
+        listenFor: const Duration(seconds: 10),
+        pauseFor: const Duration(seconds: 3),
+        onResult: (result) {
+          final words = result.recognizedWords.trim();
+          if (words.isEmpty) return;
+
+          _searchController.text = words;
+          _searchController.selection = TextSelection.fromPosition(
+            TextPosition(offset: words.length),
+          );
+
+          if (result.finalResult) {
+            if (mounted) setState(() => _isListening = false);
+            _focusNode.unfocus();
+            HapticFeedback.selectionClick();
+            searchNotifier.submitSearch(words);
+          }
+        },
+      );
+    } catch (e) {
+      if (mounted) setState(() => _isListening = false);
+      _showVoiceMessage('व्हॉइस शोध सुरू करता आला नाही. पुन्हा प्रयत्न करा.');
+    }
   }
 
   /// Plays a whole list as the queue. With [shuffle] a random song starts and
@@ -258,7 +359,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                         style: const TextStyle(color: Colors.white, fontSize: 15),
                         cursorColor: activeTheme.primaryAccent,
                         decoration: InputDecoration(
-                          hintText: 'Search any song, artist, movie or lyrics...',
+                          hintText: _isListening
+                              ? 'ऐकतंय… गाणं किंवा गायकाचं नाव सांगा'
+                              : 'Search any song, artist, movie or lyrics...',
                           hintStyle: TextStyle(
                             color: AppColors.textMuted.withValues(alpha: 0.8),
                             fontSize: 13.5,
@@ -286,6 +389,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                           ),
                         ),
                       ),
+                    IconButton(
+                      tooltip: _isListening ? 'Stop listening' : 'Search by voice',
+                      onPressed: _toggleVoiceSearch,
+                      icon: Icon(
+                        _isListening ? Icons.mic_rounded : Icons.mic_none_rounded,
+                        color: _isListening
+                            ? activeTheme.highlightColor
+                            : AppColors.textMuted,
+                        size: 21,
+                      ),
+                    ),
                     if (searchState.query.isNotEmpty || _searchController.text.isNotEmpty)
                       IconButton(
                         tooltip: 'Clear search',

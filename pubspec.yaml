@@ -50,6 +50,7 @@ dependencies:
   http: ^1.2.2
   dart_des: ^1.0.2
   battery_plus: ^7.1.2
+  speech_to_text: ^7.5.0
 
 dev_dependencies:
   flutter_test:
