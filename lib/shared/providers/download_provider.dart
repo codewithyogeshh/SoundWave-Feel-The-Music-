@@ -55,7 +55,7 @@ class DownloadNotifier extends Notifier<DownloadState> {
 
   Future<DownloadResult> downloadSong(
     SongModel song, {
-    DownloadDestination destination = DownloadDestination.inApp,
+    required DownloadDestination destination,
   }) async {
     final songId = song.id;
 
@@ -149,8 +149,10 @@ class DownloadNotifier extends Notifier<DownloadState> {
   }
 
   Future<void> retryAll() async {
+    // Retries must land where the user chose, not always in app storage.
+    final destination = ref.read(downloadDestinationProvider);
     for (final song in state.retryableSongs) {
-      await downloadSong(song);
+      await downloadSong(song, destination: destination);
     }
   }
 

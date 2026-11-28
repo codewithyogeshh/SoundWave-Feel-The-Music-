@@ -176,6 +176,26 @@ class DownloadService {
     return null;
   }
 
+  /// Whether SoundWave may write into the shared Music folder.
+  ///
+  /// Android 11+ (API 30+) blocked direct writes to public folders, so the
+  /// "All files access" permission is required there; older Android versions
+  /// still use the classic storage permission.
+  static Future<bool> _ensurePublicStorageAccess() async {
+    if (!Platform.isAndroid) return true;
+    try {
+      if (await Permission.manageExternalStorage.isGranted) return true;
+      if ((await Permission.manageExternalStorage.request()).isGranted) {
+        return true;
+      }
+      if (await Permission.storage.isGranted) return true;
+      return (await Permission.storage.request()).isGranted;
+    } catch (e) {
+      debugPrint('Storage permission check failed: $e');
+      return false;
+    }
+  }
+
   /// Download an online track (plus its cover banner) to In-App or Public storage
   static Future<DownloadResult> downloadSong(
     SongModel song, {
@@ -228,15 +248,16 @@ class DownloadService {
         );
       }
 
-      // 2. Request permissions if downloading to Phone Storage
-      if (destination == DownloadDestination.phoneStorage && Platform.isAndroid) {
-        final status = await Permission.storage.request();
-        if (status.isDenied) {
-          // Check audio permission for Android 13+
-          final audioStatus = await Permission.audio.request();
-          if (audioStatus.isDenied) {
-            debugPrint('Storage permission denied, falling back or attempting public path');
-          }
+      // 2. Phone storage needs write access to the shared Music folder
+      if (destination == DownloadDestination.phoneStorage) {
+        final allowed = await _ensurePublicStorageAccess();
+        if (!allowed) {
+          return const DownloadResult(
+            success: false,
+            error:
+                'Phone storage blocked. Allow "All files access" for SoundWave, '
+                'or switch Downloads to "Inside SoundWave".',
+          );
         }
       }
 
@@ -252,8 +273,15 @@ class DownloadService {
         fileName = '${cleanId}_320k.m4a';
       } else {
         targetDir = await getPublicStorageDirectory();
-        targetDir ??= await getInAppDirectory();
-        fileName = '$cleanTitle - $cleanArtist.mp3';
+        if (targetDir == null) {
+          return const DownloadResult(
+            success: false,
+            error: 'Phone storage (Music/SoundWave) is not available on this device',
+          );
+        }
+        final safeTitle = cleanTitle.isEmpty ? cleanId : cleanTitle;
+        final safeArtist = cleanArtist.isEmpty ? 'SoundWave' : cleanArtist;
+        fileName = '$safeTitle - $safeArtist.mp3';
       }
 
       targetFile = File('${targetDir.path}/$fileName');
