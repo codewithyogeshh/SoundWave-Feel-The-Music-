@@ -10,7 +10,6 @@ import 'package:soundwave/shared/providers/download_provider.dart';
 import 'package:soundwave/shared/providers/library_provider.dart';
 import 'package:soundwave/shared/providers/playback_prefs_provider.dart';
 import 'package:soundwave/shared/providers/player_provider.dart';
-import 'package:soundwave/shared/providers/theme_provider.dart';
 
 /// Starts the download straight away in the folder chosen in Settings, so the
 /// app never asks "where should this go?" again. The sheet is only shown for a
@@ -88,7 +87,6 @@ class DownloadOptionsSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final downloadState = ref.watch(downloadProvider);
     final libState = ref.watch(libraryProvider);
-    final activeTheme = ref.watch(themeProvider);
     final toPhoneStorage =
         ref.watch(downloadDestinationProvider) ==
         DownloadDestination.phoneStorage;
