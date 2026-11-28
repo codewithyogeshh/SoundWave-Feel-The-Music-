@@ -34,6 +34,9 @@ Future<void> main() async {
       storageService.getPauseOnHeadphoneUnplug();
   audioHandler.setBatterySaver(storageService.getBatterySaver());
   audioHandler.stopWhenTaskRemoved = storageService.getStopWhenSwipedAway();
+  audioHandler.setFadeDuration(
+    Duration(milliseconds: storageService.getAudioFadeMs()),
+  );
   OnlineMusicService.highQualityStreams =
       storageService.getHighQualityStreams();
 

@@ -116,6 +116,40 @@ class StopWhenAppClosedNotifier extends Notifier<bool> {
   }
 }
 
+/// How slowly the volume rises when a song starts and falls when it pauses.
+/// [Duration.zero] plays and stops instantly; the default is 0.7 seconds.
+final audioFadeProvider = NotifierProvider<AudioFadeNotifier, Duration>(
+  AudioFadeNotifier.new,
+);
+
+class AudioFadeNotifier extends Notifier<Duration> {
+  @override
+  Duration build() {
+    int savedMs = 700;
+    try {
+      savedMs = ref.read(storageServiceProvider).getAudioFadeMs();
+      ref
+          .read(audioHandlerProvider)
+          .setFadeDuration(Duration(milliseconds: savedMs));
+    } catch (_) {
+      // Storage or the audio engine is not available (isolated tests).
+    }
+    return Duration(milliseconds: savedMs);
+  }
+
+  Future<void> setDuration(Duration duration) async {
+    state = duration;
+    try {
+      ref.read(audioHandlerProvider).setFadeDuration(duration);
+    } catch (_) {}
+    try {
+      await ref
+          .read(storageServiceProvider)
+          .setAudioFadeMs(duration.inMilliseconds);
+    } catch (_) {}
+  }
+}
+
 /// Picks the 320 kbps or 160 kbps CDN stream for online tracks.
 final highQualityStreamProvider =
     NotifierProvider<HighQualityStreamNotifier, bool>(

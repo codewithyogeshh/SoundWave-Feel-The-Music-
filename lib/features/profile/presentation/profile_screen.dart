@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:soundwave/app/theme/app_colors.dart';
@@ -47,6 +48,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final pauseOnLowBattery = ref.watch(pauseOnLowBatteryProvider);
     final stopWhenClosed = ref.watch(stopWhenAppClosedProvider);
     final highQualityStreams = ref.watch(highQualityStreamProvider);
+    final audioFade = ref.watch(audioFadeProvider);
     final lyricsCacheCount = storage.getCachedLyricsCount();
     final lyricsCacheBytes = storage.getCachedLyricsBytes();
 
@@ -498,6 +500,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ),
                   );
                 },
+              ),
+              const SizedBox(height: 10),
+
+              _buildSettingsTile(
+                icon: Icons.volume_up_rounded,
+                title: 'Volume Fade In / Out',
+                subtitle: audioFade == Duration.zero
+                    ? 'Off — music starts and stops instantly'
+                    : '${_fadeLabel(audioFade)} ramp when a song starts or pauses',
+                iconColor: currentTheme.primaryAccent,
+                onTap: () => _showFadeSheet(currentTheme),
               ),
               const SizedBox(height: 10),
 
@@ -1075,6 +1088,148 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           ),
         );
       },
+    );
+  }
+
+  String _fadeLabel(Duration duration) {
+    final seconds = duration.inMilliseconds / 1000;
+    return seconds == seconds.roundToDouble()
+        ? '${seconds.round()} second${seconds.round() == 1 ? '' : 's'}'
+        : '${seconds.toStringAsFixed(1)} seconds';
+  }
+
+  /// Six sensible ramps from instant to a slow three-second swell.
+  static const List<Duration> _fadeOptions = [
+    Duration.zero,
+    Duration(milliseconds: 300),
+    Duration(milliseconds: 700),
+    Duration(milliseconds: 1200),
+    Duration(milliseconds: 2000),
+    Duration(milliseconds: 3000),
+  ];
+
+  void _showFadeSheet(AppThemeType activeTheme) {
+    final selected = ref.read(audioFadeProvider);
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        child: SingleChildScrollView(
+          child: Container(
+            margin: const EdgeInsets.all(10),
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+            decoration: BoxDecoration(
+              color: activeTheme.secondaryBackground,
+              borderRadius: BorderRadius.circular(26),
+              border: Border.all(
+                color: activeTheme.highlightColor.withValues(alpha: 0.35),
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.volume_up_rounded,
+                      color: activeTheme.highlightColor,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Volume Fade In / Out',
+                      style: AppTextStyles.songTitle.copyWith(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'How gently the volume rises when a song starts and drops when you pause.',
+                  style: AppTextStyles.subtitle.copyWith(
+                    fontSize: 12,
+                    height: 1.35,
+                    color: Colors.white.withValues(alpha: 0.68),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                ..._fadeOptions.map((option) {
+                  final isSelected = option == selected;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        ref
+                            .read(audioFadeProvider.notifier)
+                            .setDuration(option);
+                        Navigator.of(sheetContext).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              option == Duration.zero
+                                  ? 'Fade off — music starts and stops instantly'
+                                  : 'Fade set to ${_fadeLabel(option)}',
+                            ),
+                            duration: const Duration(seconds: 1),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? activeTheme.primaryAccent.withValues(alpha: 0.22)
+                              : Colors.white.withValues(alpha: 0.05),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: isSelected
+                                ? activeTheme.highlightColor.withValues(alpha: 0.7)
+                                : Colors.white.withValues(alpha: 0.1),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                option == Duration.zero
+                                    ? 'Off (instant)'
+                                    : _fadeLabel(option),
+                                style: TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: isSelected
+                                      ? FontWeight.w800
+                                      : FontWeight.w600,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                            if (isSelected)
+                              Icon(
+                                Icons.check_circle_rounded,
+                                color: activeTheme.highlightColor,
+                                size: 18,
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 

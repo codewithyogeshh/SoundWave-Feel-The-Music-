@@ -34,6 +34,7 @@ class LibraryStorageService {
   static const String _keyLastPositionMs = 'sw_last_position_ms';
   static const String _keyPlaybackSpeed = 'sw_playback_speed';
   static const String _keyPlaybackVolume = 'sw_playback_volume';
+  static const String _keyAudioFadeMs = 'sw_audio_fade_ms';
   static const String _keyListenedSeconds = 'sw_stats_listened_seconds';
   static const String _keyPauseOnUnplug = 'sw_pause_on_headphone_unplug';
   static const String _keyBatterySaver = 'sw_battery_saver';
@@ -346,6 +347,16 @@ class LibraryStorageService {
 
   Future<void> setPauseOnHeadphoneUnplug(bool value) async {
     await _prefs.setBool(_keyPauseOnUnplug, value);
+  }
+
+  /// How long the volume takes to rise/fall around playback, in milliseconds.
+  /// 0 turns the fade off; the shipped default is 700 ms.
+  int getAudioFadeMs() {
+    return (_prefs.getInt(_keyAudioFadeMs) ?? 700).clamp(0, 5000);
+  }
+
+  Future<void> setAudioFadeMs(int value) async {
+    await _prefs.setInt(_keyAudioFadeMs, value.clamp(0, 5000));
   }
 
   bool getBatterySaver() {

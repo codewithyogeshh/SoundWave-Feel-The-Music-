@@ -139,10 +139,12 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
   bool _disposed = false;
 
   // Fade in/out so playback never starts or stops with a hard volume jump.
-  static const Duration _fadeInDuration = Duration(milliseconds: 700);
-  static const Duration _fadeOutDuration = Duration(milliseconds: 420);
+  // The ramp length is tunable from Profile & Settings; zero turns it off.
   static const Duration _fadeTick = Duration(milliseconds: 40);
   static const double _fadeFloor = 0.005;
+
+  Duration _fadeInDuration = const Duration(milliseconds: 700);
+  Duration _fadeOutDuration = const Duration(milliseconds: 420);
 
   Timer? _fadeTimer;
 
@@ -377,11 +379,24 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
     _fadeTimer = null;
   }
 
+  /// Sets how slowly the volume rises when playback starts and falls when it
+  /// pauses. The fall is a little shorter than the rise so pausing still feels
+  /// immediate; [duration] of zero switches the effect off entirely.
+  void setFadeDuration(Duration duration) {
+    final ms = duration.inMilliseconds.clamp(0, 5000);
+    _fadeInDuration = Duration(milliseconds: ms);
+    _fadeOutDuration = Duration(milliseconds: (ms * 0.6).round());
+  }
+
+  Duration get fadeInDuration => _fadeInDuration;
+
   /// Ramps the player up from silence to the listener's chosen volume.
   void _startVolumeFadeIn() {
     _cancelVolumeFade();
     final target = _targetVolume.clamp(0.0, 1.0);
-    if (target <= _fadeFloor || _disposed) {
+    if (target <= _fadeFloor ||
+        _disposed ||
+        _fadeInDuration == Duration.zero) {
       unawaited(_player.setVolume(target));
       return;
     }
@@ -410,7 +425,7 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
     _cancelVolumeFade();
     if (!_player.playing) return;
     final start = _player.volume.clamp(0.0, 1.0);
-    if (start <= _fadeFloor) return;
+    if (start <= _fadeFloor || _fadeOutDuration == Duration.zero) return;
     final steps =
         (_fadeOutDuration.inMilliseconds / _fadeTick.inMilliseconds).ceil();
     final done = Completer<void>();
