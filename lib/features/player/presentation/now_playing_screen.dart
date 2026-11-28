@@ -301,6 +301,11 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
 
                         // Quick jump back 10s / forward 30s
                         _buildSeekRow(playerState),
+
+                        const SizedBox(height: 4),
+
+                        // Volume slider with a mute toggle on the left
+                        _buildVolumeRow(playerState, activeTheme),
                       ],
                     ),
                   ),
@@ -921,6 +926,78 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
             child: Icon(icon, size: 34, color: Colors.white),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildVolumeRow(PlayerState playerState, AppThemeType activeTheme) {
+    final notifier = ref.read(playerProvider.notifier);
+    final volume = playerState.volume.clamp(0.0, 1.0);
+    final isMuted = volume <= 0.01;
+
+    return Padding(
+      padding: const EdgeInsets.only(left: 2, right: 2),
+      child: Row(
+        children: [
+          Tooltip(
+            message: isMuted ? 'Unmute' : 'Mute',
+            child: InkResponse(
+              radius: 20,
+              onTap: () {
+                HapticFeedback.selectionClick();
+                notifier.toggleMute();
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(6),
+                child: Icon(
+                  isMuted
+                      ? Icons.volume_off_rounded
+                      : volume < 0.5
+                      ? Icons.volume_down_rounded
+                      : Icons.volume_up_rounded,
+                  size: 22,
+                  color: isMuted ? AppColors.textMuted : Colors.white,
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                trackHeight: 4,
+                activeTrackColor: activeTheme.highlightColor,
+                inactiveTrackColor: Colors.white.withValues(alpha: 0.22),
+                thumbColor: Colors.white,
+                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6.5),
+                overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+                overlayColor: activeTheme.primaryAccent.withValues(alpha: 0.16),
+              ),
+              child: Slider(
+                min: 0.0,
+                max: 1.0,
+                value: volume,
+                onChanged: (value) => notifier.setVolume(value, persist: false),
+                onChangeEnd: (value) {
+                  HapticFeedback.selectionClick();
+                  notifier.setVolume(value);
+                },
+              ),
+            ),
+          ),
+          SizedBox(
+            width: 40,
+            child: Text(
+              '${(volume * 100).round()}%',
+              textAlign: TextAlign.right,
+              style: AppTextStyles.timeLabel.copyWith(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textMuted,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

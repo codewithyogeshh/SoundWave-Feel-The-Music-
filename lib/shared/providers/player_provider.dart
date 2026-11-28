@@ -622,11 +622,14 @@ class PlayerNotifier extends Notifier<PlayerState> {
 
   /// Sets the playback volume (0.0 = silent, 1.0 = full) and remembers it, so
   /// the level survives an app restart.
-  Future<void> setVolume(double volume) async {
+  /// [persist] is false while the volume slider is being dragged, so every
+  /// pixel of movement stays smooth and only the final level is saved.
+  Future<void> setVolume(double volume, {bool persist = true}) async {
     final clamped = volume.clamp(0.0, 1.0);
     if (clamped > 0.01) _volumeBeforeMute = clamped;
     state = state.copyWith(volume: clamped);
     await _handler.setPlaybackVolume(clamped);
+    if (!persist) return;
     try {
       await ref.read(storageServiceProvider).savePlaybackVolume(clamped);
     } catch (_) {
