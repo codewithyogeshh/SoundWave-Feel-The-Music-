@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:soundwave/app/theme/app_colors.dart';
 import 'package:soundwave/app/theme/text_styles.dart';
+import 'package:soundwave/app/theme/theme_model.dart';
 import 'package:soundwave/core/widgets/album_artwork.dart';
 import 'package:soundwave/core/widgets/app_background.dart';
 import 'package:soundwave/core/widgets/empty_state_widget.dart';
 import 'package:soundwave/core/widgets/gradient_button.dart';
+import 'package:soundwave/core/widgets/premium_sheet.dart';
 import 'package:soundwave/core/widgets/song_track_tile.dart';
 import 'package:soundwave/features/library/models/playlist_model.dart';
+import 'package:soundwave/features/player/models/song_model.dart';
 import 'package:soundwave/shared/providers/library_provider.dart';
 import 'package:soundwave/shared/providers/player_provider.dart';
 import 'package:soundwave/shared/providers/theme_provider.dart';
@@ -127,6 +130,9 @@ class PlaylistDetailScreen extends ConsumerWidget {
                         color: activeTheme.highlightColor.withValues(alpha: 0.92),
                       ),
                     ),
+                    const SizedBox(height: 16),
+                    _buildMetaStrip(activeTheme, playlist),
+
                     const SizedBox(height: 18),
 
                     // Play All & Shuffle Buttons
@@ -164,6 +170,8 @@ class PlaylistDetailScreen extends ConsumerWidget {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 14),
+                    _buildAddSongsPill(context, ref, activeTheme, playlist),
                     const SizedBox(height: 24),
                   ],
                 ),
@@ -212,6 +220,122 @@ class PlaylistDetailScreen extends ConsumerWidget {
               ),
 
             const SliverToBoxAdapter(child: SizedBox(height: 175)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMetaStrip(AppThemeType activeTheme, PlaylistModel playlist) {
+    final total = playlist.songs.fold<Duration>(
+      Duration.zero,
+      (sum, song) => sum + song.duration,
+    );
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.glassWhite.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: activeTheme.highlightColor.withValues(alpha: 0.18),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: activeTheme.primaryAccent.withValues(alpha: 0.12),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Wrap(
+        alignment: WrapAlignment.center,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 16,
+        runSpacing: 8,
+        children: [
+          _metaItem(
+            activeTheme,
+            Icons.library_music_rounded,
+            '${playlist.songCount} ${playlist.songCount == 1 ? 'song' : 'songs'}',
+          ),
+          _metaItem(
+            activeTheme,
+            Icons.schedule_rounded,
+            _formatTotalDuration(total),
+          ),
+          _metaItem(
+            activeTheme,
+            playlist.isCustom
+                ? Icons.edit_note_rounded
+                : Icons.auto_awesome_rounded,
+            playlist.isCustom ? 'Your playlist' : 'Smart mix',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _metaItem(AppThemeType activeTheme, IconData icon, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 13, color: activeTheme.highlightColor),
+        const SizedBox(width: 5),
+        Text(
+          label,
+          style: AppTextStyles.subtitle.copyWith(
+            fontSize: 11.5,
+            fontWeight: FontWeight.w700,
+            color: Colors.white.withValues(alpha: 0.86),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _formatTotalDuration(Duration total) {
+    if (total.inMinutes < 1) return 'Under a minute';
+    final hours = total.inHours;
+    final minutes = total.inMinutes.remainder(60);
+    if (hours == 0) return '$minutes min';
+    return minutes == 0 ? '$hours hr' : '$hours hr $minutes min';
+  }
+
+  Widget _buildAddSongsPill(
+    BuildContext context,
+    WidgetRef ref,
+    AppThemeType activeTheme,
+    PlaylistModel playlist,
+  ) {
+    return GestureDetector(
+      onTap: () => _showAddSongsSheet(context, ref, playlist),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.glassWhiteMedium,
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(
+            color: activeTheme.highlightColor.withValues(alpha: 0.32),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.playlist_add_rounded,
+              size: 15,
+              color: activeTheme.highlightColor,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'Add songs',
+              style: AppTextStyles.subtitle.copyWith(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+              ),
+            ),
           ],
         ),
       ),
@@ -300,75 +424,211 @@ class PlaylistDetailScreen extends ConsumerWidget {
     WidgetRef ref,
     PlaylistModel playlist,
   ) {
-    final allSongs = ref.read(libraryProvider).allSongs;
+    final activeTheme = ref.read(themeProvider);
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.primaryBackground,
+      backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
       builder: (ctx) {
         return DraggableScrollableSheet(
-          initialChildSize: 0.7,
-          minChildSize: 0.4,
-          maxChildSize: 0.9,
+          initialChildSize: 0.78,
+          minChildSize: 0.45,
+          maxChildSize: 0.94,
           expand: false,
           builder: (_, controller) {
-            return Column(
-              children: [
-                Container(
-                  width: 44,
-                  height: 4,
-                  margin: const EdgeInsets.symmetric(vertical: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                  child: Text('Add Songs to ${playlist.name}', style: AppTextStyles.sectionTitle),
-                ),
-                Expanded(
-                  child: ListView.builder(
-                    controller: controller,
-                    itemCount: allSongs.length,
-                    itemBuilder: (_, index) {
-                      final song = allSongs[index];
-                      final alreadyIn = playlist.songs.any((s) => s.id == song.id);
-                      return ListTile(
-                        leading: AlbumArtwork(
-                          size: 44,
-                          borderRadius: 10,
-                          artworkUrl: song.artworkPath,
-                          albumId: song.albumId,
-                          songId: song.rawId,
-                          songTitle: song.title,
-                          songArtist: song.artist,
+            return Container(
+              decoration: premiumSheetDecoration(activeTheme, radius: 28),
+              child: Consumer(
+                builder: (context, sheetRef, _) {
+                  final libState = sheetRef.watch(libraryProvider);
+                  final live = libState.playlists
+                          .where((p) => p.id == playlist.id)
+                          .firstOrNull ??
+                      playlist;
+                  final allSongs = libState.allSongs;
+
+                  return Column(
+                    children: [
+                      PremiumSheetHandle(theme: activeTheme),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: PremiumSheetHeader(
+                          theme: activeTheme,
+                          icon: Icons.playlist_add_rounded,
+                          title: 'Add Songs',
+                          subtitle: 'To ${live.name} • '
+                              '${live.songCount} '
+                              '${live.songCount == 1 ? 'song' : 'songs'}',
+                          trailing: PremiumSheetPill(
+                            label: '${allSongs.length}',
+                            icon: Icons.library_music_rounded,
+                            color: activeTheme.highlightColor,
+                          ),
                         ),
-                        title: Text(song.title, style: AppTextStyles.songTitle),
-                        subtitle: Text(song.artist, style: AppTextStyles.artistName),
-                        trailing: Icon(
-                          alreadyIn ? Icons.check_circle_rounded : Icons.add_circle_outline_rounded,
-                          color: alreadyIn ? AppColors.neonBlue : Colors.white,
-                        ),
-                        onTap: () {
-                          if (!alreadyIn) {
-                            ref
-                                .read(libraryProvider.notifier)
-                                .addSongToPlaylist(playlist.id, song);
-                          }
-                        },
-                      );
-                    },
-                  ),
-                ),
-              ],
+                      ),
+                      const SizedBox(height: 14),
+                      _buildSheetHairline(activeTheme),
+                      Expanded(
+                        child: allSongs.isEmpty
+                            ? Center(
+                                child: Text(
+                                  'No songs in your library yet',
+                                  style: AppTextStyles.subtitle.copyWith(
+                                    color: AppColors.textMuted,
+                                  ),
+                                ),
+                              )
+                            : ListView.builder(
+                                controller: controller,
+                                physics: const BouncingScrollPhysics(),
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  10,
+                                  16,
+                                  24,
+                                ),
+                                itemCount: allSongs.length,
+                                itemBuilder: (_, index) {
+                                  final song = allSongs[index];
+                                  final alreadyIn = live.songs.any(
+                                    (s) => s.id == song.id,
+                                  );
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 8),
+                                    child: _buildAddSongRow(
+                                      sheetRef,
+                                      activeTheme,
+                                      live,
+                                      song,
+                                      alreadyIn,
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
+                  );
+                },
+              ),
             );
           },
         );
       },
+    );
+  }
+
+  Widget _buildSheetHairline(AppThemeType activeTheme) {
+    return Container(
+      height: 1,
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.transparent,
+            activeTheme.highlightColor.withValues(alpha: 0.45),
+            Colors.transparent,
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAddSongRow(
+    WidgetRef ref,
+    AppThemeType activeTheme,
+    PlaylistModel playlist,
+    SongModel song,
+    bool alreadyIn,
+  ) {
+    return GestureDetector(
+      onTap: alreadyIn
+          ? null
+          : () {
+              ref
+                  .read(libraryProvider.notifier)
+                  .addSongToPlaylist(playlist.id, song);
+            },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          color: alreadyIn
+              ? activeTheme.primaryAccent.withValues(alpha: 0.12)
+              : AppColors.glassWhite.withValues(alpha: 0.04),
+          border: Border.all(
+            color: alreadyIn
+                ? activeTheme.highlightColor.withValues(alpha: 0.4)
+                : AppColors.glassBorderSubtle,
+          ),
+        ),
+        child: Row(
+          children: [
+            AlbumArtwork(
+              size: 44,
+              borderRadius: 11,
+              artworkUrl: song.artworkPath,
+              albumId: song.albumId,
+              songId: song.rawId,
+              songTitle: song.title,
+              songArtist: song.artist,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    song.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.songTitle.copyWith(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    song.artist,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.artistName.copyWith(fontSize: 11.5),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            if (alreadyIn)
+              PremiumSheetPill(
+                label: 'ADDED',
+                icon: Icons.check_rounded,
+                color: activeTheme.highlightColor,
+              )
+            else
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  gradient: activeTheme.primaryGradient,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: activeTheme.primaryAccent.withValues(alpha: 0.3),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  Icons.add_rounded,
+                  size: 18,
+                  color: activeTheme.onPrimaryGradient,
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
