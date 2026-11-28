@@ -655,6 +655,15 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
+      // The home header, quick-access dock and hero banner sit above the
+      // trending rail, so scroll down to it before asserting.
+      await tester.dragUntilVisible(
+        find.text('Trending Online Hits'),
+        find.byType(CustomScrollView).first,
+        const Offset(0, -120),
+      );
+      await tester.pump();
+
       expect(find.text('Trending Online Hits'), findsOneWidget);
       expect(find.text('Midnight Melody'), findsWidgets);
     });

@@ -109,6 +109,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ),
 
+            // 1b. Premium quick-access dock with live library counts
+            SliverToBoxAdapter(
+              child: Reveal(
+                index: 1,
+                child: _buildQuickDock(activeTheme, libState),
+              ),
+            ),
+
             // 2. Hero Featured Banner (Dynamic for Selected Category or Offline Fallback)
             activeFeedAsync.when(
               data: (songs) {
@@ -394,16 +402,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   onActionTap: widget.onNavigateToLibrary,
                 ),
               ),
-              SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final song = downloadedSongs[index];
-                    return OnlineSongTile(
-                      song: song,
-                      playlist: downloadedSongs,
-                    );
-                  },
-                  childCount: downloadedSongs.length.clamp(0, 4),
+              SliverToBoxAdapter(
+                child: _HomeSongShelf(
+                  songs: downloadedSongs,
+                  activeTheme: activeTheme,
                 ),
               ),
               const SliverToBoxAdapter(child: SizedBox(height: 16)),
@@ -419,16 +421,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   onActionTap: widget.onNavigateToLibrary,
                 ),
               ),
-              SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final song = libState.recentlyPlayedSongs[index];
-                    return OnlineSongTile(
-                      song: song,
-                      playlist: libState.recentlyPlayedSongs,
-                    );
-                  },
-                  childCount: libState.recentlyPlayedSongs.length.clamp(0, 4),
+              SliverToBoxAdapter(
+                child: _HomeSongShelf(
+                  songs: libState.recentlyPlayedSongs,
+                  activeTheme: activeTheme,
                 ),
               ),
               const SliverToBoxAdapter(child: SizedBox(height: 16)),
@@ -827,6 +823,142 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
+  /// Compact glass dock of shortcuts under the brand header: library, offline
+  /// downloads, explore and profile, each with a live count where it matters.
+  Widget _buildQuickDock(AppThemeType activeTheme, LibraryState libState) {
+    final actions = [
+      _QuickAction(
+        label: 'Library',
+        detail: '${libState.allSongs.length} songs',
+        icon: Icons.library_books_rounded,
+        onTap: widget.onNavigateToLibrary,
+      ),
+      _QuickAction(
+        label: 'Offline',
+        detail: '${libState.downloadedSongs.length} saved',
+        icon: Icons.download_for_offline_rounded,
+        onTap: widget.onNavigateToLibrary,
+      ),
+      _QuickAction(
+        label: 'Explore',
+        detail: 'Fresh picks',
+        icon: Icons.travel_explore_rounded,
+        onTap: widget.onNavigateToExplore,
+      ),
+      _QuickAction(
+        label: 'Profile',
+        detail: 'Settings',
+        icon: Icons.person_outline_rounded,
+        onTap: widget.onNavigateToProfile,
+      ),
+    ];
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 2, 20, 10),
+      padding: const EdgeInsets.all(7),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            activeTheme.primaryAccent.withValues(alpha: 0.22),
+            AppColors.glassWhite.withValues(alpha: 0.045),
+          ],
+        ),
+        border: Border.all(
+          color: activeTheme.highlightColor.withValues(alpha: 0.26),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: activeTheme.primaryAccent.withValues(alpha: 0.18),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          for (var i = 0; i < actions.length; i++) ...[
+            if (i > 0)
+              Container(
+                width: 1,
+                height: 42,
+                color: AppColors.glassBorderSubtle,
+              ),
+            Expanded(child: _buildQuickActionTile(activeTheme, actions[i])),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickActionTile(AppThemeType activeTheme, _QuickAction action) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: action.onTap == null
+          ? null
+          : () {
+              HapticFeedback.selectionClick();
+              action.onTap!();
+            },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    activeTheme.primaryAccent.withValues(alpha: 0.9),
+                    activeTheme.secondaryAccent.withValues(alpha: 0.62),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(11),
+                boxShadow: [
+                  BoxShadow(
+                    color: activeTheme.primaryAccent.withValues(alpha: 0.38),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Icon(action.icon, size: 17, color: Colors.white),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              action.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 1),
+            Text(
+              action.detail,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.textMuted,
+                fontSize: 8.5,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.1,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildHeroBanner(
     BuildContext context,
     SongModel heroSong,
@@ -1062,6 +1194,143 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ],
         ),
       ),
+      ),
+    );
+  }
+}
+
+/// One shortcut tile inside the home quick-access dock.
+class _QuickAction {
+  final String label;
+  final String detail;
+  final IconData icon;
+  final VoidCallback? onTap;
+
+  const _QuickAction({
+    required this.label,
+    required this.detail,
+    required this.icon,
+    this.onTap,
+  });
+}
+
+/// Horizontal shelf of artwork-first song cards used for the offline and
+/// recently played rails on the home screen.
+class _HomeSongShelf extends ConsumerWidget {
+  final List<SongModel> songs;
+  final AppThemeType activeTheme;
+
+  const _HomeSongShelf({
+    required this.songs,
+    required this.activeTheme,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final playerState = ref.watch(playerProvider);
+    final libState = ref.watch(libraryProvider);
+    final shelfSongs = songs.take(12).toList();
+
+    return SizedBox(
+      height: 178,
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        itemCount: shelfSongs.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 12),
+        itemBuilder: (context, index) {
+          final song = shelfSongs[index];
+          final downloaded =
+              libState.downloadedSongs.where((s) => s.id == song.id).firstOrNull;
+          final artwork = (downloaded?.artworkPath?.isNotEmpty ?? false)
+              ? downloaded!.artworkPath
+              : song.artworkPath;
+          final isCurrent = playerState.currentSong?.id == song.id;
+
+          return GestureDetector(
+            onTap: () {
+              HapticFeedback.selectionClick();
+              if (isCurrent) {
+                ref.read(playerProvider.notifier).togglePlayPause();
+              } else {
+                ref
+                    .read(playerProvider.notifier)
+                    .playTrack(song, queue: shelfSongs);
+                ref.read(libraryProvider.notifier).recordPlayed(song);
+              }
+            },
+            child: SizedBox(
+              width: 124,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Stack(
+                    children: [
+                      AlbumArtwork(
+                        size: 124,
+                        borderRadius: 20,
+                        artworkUrl: artwork,
+                        albumId: downloaded?.albumId ?? song.albumId,
+                        songId: downloaded?.rawId ?? song.rawId,
+                        songTitle: song.title,
+                        songArtist: song.artist,
+                        hasGlow: isCurrent,
+                        glowColor: activeTheme.primaryAccent,
+                      ),
+                      Positioned(
+                        right: 8,
+                        bottom: 8,
+                        child: Container(
+                          width: 30,
+                          height: 30,
+                          decoration: BoxDecoration(
+                            gradient: activeTheme.accentGradient,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.35),
+                                blurRadius: 10,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            isCurrent && playerState.isPlaying
+                                ? Icons.pause_rounded
+                                : Icons.play_arrow_rounded,
+                            size: 18,
+                            color: activeTheme.onAccentGradient,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    song.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.songTitle.copyWith(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    song.artist,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.artistName.copyWith(
+                      fontSize: 10.5,
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
