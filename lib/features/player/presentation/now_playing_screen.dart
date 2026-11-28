@@ -23,6 +23,7 @@ import 'package:soundwave/features/player/services/sleep_timer_service.dart';
 import 'package:soundwave/shared/providers/download_provider.dart';
 import 'package:soundwave/shared/providers/library_provider.dart';
 import 'package:soundwave/shared/providers/online_music_provider.dart';
+import 'package:soundwave/shared/providers/playback_prefs_provider.dart';
 import 'package:soundwave/shared/providers/player_provider.dart';
 import 'package:soundwave/shared/providers/theme_provider.dart';
 
@@ -102,6 +103,16 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                 const SizedBox(height: 6),
                 // Top Bar with live Sleep Timer pill & quick actions
                 _stagger(0, _buildTopBar(context, song, activeTheme, sleepTimer, playerState.playbackSpeed)),
+                const SizedBox(height: 8),
+                _stagger(
+                  1,
+                  _buildMetaStrip(
+                    activeTheme,
+                    song,
+                    playerState,
+                    isDownloaded: libState.isDownloaded(song.id),
+                  ),
+                ),
                 const SizedBox(height: 10),
 
                 // Center Album Art or Interactive Karaoke Lyrics
@@ -335,6 +346,117 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     );
   }
 
+  /// Slim three-up strip under the header: where the audio comes from, the
+  /// stream quality in use and how many tracks are waiting in the queue.
+  Widget _buildMetaStrip(
+    AppThemeType activeTheme,
+    SongModel song,
+    PlayerState playerState, {
+    required bool isDownloaded,
+  }) {
+    final highQuality = ref.watch(highQualityStreamProvider);
+    final offline = song.isLocal || isDownloaded;
+
+    final items = [
+      _PlayerMeta(
+        icon: offline ? Icons.offline_pin_rounded : Icons.cloud_done_rounded,
+        label: 'Source',
+        value: offline ? 'Offline' : 'Streaming',
+      ),
+      _PlayerMeta(
+        icon: Icons.graphic_eq_rounded,
+        label: 'Quality',
+        value: highQuality ? '320 kbps' : '160 kbps',
+      ),
+      _PlayerMeta(
+        icon: Icons.queue_music_rounded,
+        label: 'Up Next',
+        value: '${playerState.queue.length} tracks',
+      ),
+    ];
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            activeTheme.primaryAccent.withValues(alpha: 0.20),
+            AppColors.glassWhite.withValues(alpha: 0.04),
+          ],
+        ),
+        border: Border.all(
+          color: activeTheme.highlightColor.withValues(alpha: 0.24),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: activeTheme.primaryAccent.withValues(alpha: 0.16),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          for (var i = 0; i < items.length; i++) ...[
+            if (i > 0)
+              Container(
+                width: 1,
+                height: 26,
+                color: AppColors.glassBorderSubtle,
+              ),
+            Expanded(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    items[i].icon,
+                    size: 14,
+                    color: activeTheme.highlightColor,
+                  ),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          items[i].value,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            height: 1.1,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 1),
+                        Text(
+                          items[i].label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.3,
+                            color: AppColors.textMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildTopBar(
     BuildContext context,
     SongModel song,
@@ -383,12 +505,18 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
           child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              'Now Playing',
-              style: AppTextStyles.sectionTitle.copyWith(
-                fontSize: 16.5,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.3,
+            ShaderMask(
+              shaderCallback: (rect) => activeTheme.primaryGradient
+                  .createShader(rect),
+              blendMode: BlendMode.srcIn,
+              child: Text(
+                'Now Playing',
+                style: AppTextStyles.sectionTitle.copyWith(
+                  fontSize: 16.5,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.3,
+                  color: Colors.white,
+                ),
               ),
             ),
             const SizedBox(height: 2),
@@ -1076,90 +1204,171 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     final isDownloading = downloadState.isDownloading(song.id);
     final downloadProgress = downloadState.getProgress(song.id);
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          IconButton(
-            tooltip: 'Share track',
-            icon: const Icon(Icons.share_outlined, color: AppColors.textSecondary, size: 22),
-            onPressed: () {
-              HapticFeedback.lightImpact();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Sharing "${song.title}" by ${song.artist}'),
-                ),
-              );
-            },
-          ),
-          IconButton(
-            tooltip: isFav ? 'Remove from favorites' : 'Add to favorites',
-            icon: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 220),
-              transitionBuilder: (child, animation) => ScaleTransition(
-                scale: Tween<double>(begin: 0.78, end: 1.0).animate(
-                  CurvedAnimation(parent: animation, curve: Curves.easeOutBack),
-                ),
-                child: child,
-              ),
-              child: Icon(
-                isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                key: ValueKey<bool>(isFav),
-                color: isFav ? activeTheme.highlightColor : AppColors.textSecondary,
-                size: 24,
-              ),
+    final actions = <Widget>[
+      _actionButton(
+        label: 'Share',
+        color: activeTheme.secondaryAccent,
+        icon: Icons.ios_share_rounded,
+        onTap: () {
+          HapticFeedback.lightImpact();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Sharing "${song.title}" by ${song.artist}'),
             ),
-            onPressed: () {
-              HapticFeedback.lightImpact();
-              ref.read(libraryProvider.notifier).toggleFavorite(song);
-            },
-          ),
-          IconButton(
-            tooltip: isDownloaded ? 'Downloaded Offline' : 'Download 320kbps + Cover Banner',
-            icon: isDownloading
-                ? SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(
-                      value: downloadProgress > 0 ? downloadProgress : null,
-                      strokeWidth: 2.2,
-                      color: activeTheme.primaryAccent,
-                    ),
-                  )
-                : Icon(
-                    isDownloaded
-                        ? Icons.check_circle_rounded
-                        : Icons.arrow_circle_down_rounded,
-                    color: isDownloaded
-                        ? Colors.greenAccent
-                        : activeTheme.primaryAccent,
-                    size: 26,
-                  ),
-            onPressed: () {
-              HapticFeedback.lightImpact();
-              showDownloadOptionsSheet(context, song);
-            },
-          ),
-          IconButton(
-            tooltip: 'Equalizer Studio',
-            icon: const Icon(Icons.equalizer_rounded, color: AppColors.textSecondary, size: 24),
-            onPressed: () {
-              HapticFeedback.lightImpact();
-              context.push('/equalizer');
-            },
-          ),
-          IconButton(
-            tooltip: 'Add to playlist',
-            icon: const Icon(Icons.playlist_add_rounded, color: AppColors.textSecondary, size: 26),
-            onPressed: () => _showAddToPlaylistDialog(context, song, activeTheme),
-          ),
-          IconButton(
-            tooltip: 'Playback queue',
-            icon: const Icon(Icons.queue_music_rounded, color: AppColors.textSecondary, size: 24),
-            onPressed: () => _showQueueSheet(context, activeTheme),
+          );
+        },
+      ),
+      _actionButton(
+        label: isFav ? 'Liked' : 'Like',
+        color: activeTheme.highlightColor,
+        highlighted: isFav,
+        icon: isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+        onTap: () {
+          HapticFeedback.lightImpact();
+          ref.read(libraryProvider.notifier).toggleFavorite(song);
+        },
+      ),
+      _actionButton(
+        label: isDownloaded ? 'Saved' : 'Download',
+        color: isDownloaded ? Colors.greenAccent : activeTheme.primaryAccent,
+        highlighted: isDownloaded,
+        icon: isDownloaded
+            ? Icons.check_circle_rounded
+            : Icons.arrow_circle_down_rounded,
+        spinner: isDownloading
+            ? CircularProgressIndicator(
+                value: downloadProgress > 0 ? downloadProgress : null,
+                strokeWidth: 2,
+                color: activeTheme.onPrimaryGradient,
+              )
+            : null,
+        onTap: () {
+          HapticFeedback.lightImpact();
+          showDownloadOptionsSheet(context, song);
+        },
+      ),
+      _actionButton(
+        label: 'Equalizer',
+        color: activeTheme.primaryAccent,
+        icon: Icons.equalizer_rounded,
+        onTap: () {
+          HapticFeedback.lightImpact();
+          context.push('/equalizer');
+        },
+      ),
+      _actionButton(
+        label: 'Playlist',
+        color: activeTheme.secondaryAccent,
+        icon: Icons.playlist_add_rounded,
+        onTap: () => _showAddToPlaylistDialog(context, song, activeTheme),
+      ),
+      _actionButton(
+        label: 'Queue',
+        color: activeTheme.highlightColor,
+        icon: Icons.queue_music_rounded,
+        onTap: () => _showQueueSheet(context, activeTheme),
+      ),
+    ];
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            activeTheme.primaryAccent.withValues(alpha: 0.16),
+            AppColors.glassWhite.withValues(alpha: 0.04),
+          ],
+        ),
+        border: Border.all(
+          color: activeTheme.highlightColor.withValues(alpha: 0.24),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: activeTheme.primaryAccent.withValues(alpha: 0.16),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
           ),
         ],
+      ),
+      child: Row(
+        children: [
+          for (var i = 0; i < actions.length; i++) ...[
+            if (i > 0)
+              Container(
+                width: 1,
+                height: 34,
+                color: AppColors.glassBorderSubtle,
+              ),
+            Expanded(child: actions[i]),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// One quick action inside the player's glass action deck.
+  Widget _actionButton({
+    required String label,
+    required Color color,
+    required IconData icon,
+    required VoidCallback onTap,
+    bool highlighted = false,
+    Widget? spinner,
+  }) {
+    final onColor = AppThemeType.readableOn([color]);
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    color.withValues(alpha: highlighted ? 1.0 : 0.92),
+                    color.withValues(alpha: highlighted ? 0.72 : 0.55),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withValues(alpha: highlighted ? 0.5 : 0.3),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Center(
+                child: spinner ??
+                    Icon(icon, size: 19, color: onColor),
+              ),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 8.5,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.2,
+                color: highlighted
+                    ? Colors.white
+                    : Colors.white.withValues(alpha: 0.66),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2469,3 +2678,15 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
   }
 }
 
+/// One value inside the now-playing meta strip.
+class _PlayerMeta {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _PlayerMeta({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+}
