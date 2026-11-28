@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:soundwave/app/theme/app_colors.dart';
 import 'package:soundwave/app/theme/text_styles.dart';
 import 'package:soundwave/app/theme/theme_model.dart';
@@ -370,6 +371,10 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
         color: AppColors.glassWhiteMedium,
         borderColor: activeTheme.primaryAccent.withValues(alpha: 0.28),
         padding: const EdgeInsets.all(18),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          context.push('/storage');
+        },
         child: Row(
           children: [
             Container(
@@ -400,7 +405,8 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                   Text(
                     '${downloaded.length} ${downloaded.length == 1 ? 'song' : 'songs'} stored offline'
                     '${active.isEmpty ? '' : ' • ${active.length} downloading'}'
-                    '${failed.isEmpty ? '' : ' • ${failed.length} failed'}',
+                    '${failed.isEmpty ? '' : ' • ${failed.length} failed'}'
+                    ' • Storage Manager',
                     maxLines: 2,
                     style: AppTextStyles.subtitle.copyWith(
                       color: AppColors.textMuted,
@@ -409,6 +415,11 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                   ),
                 ],
               ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: activeTheme.primaryAccent,
+              size: 20,
             ),
           ],
         ),

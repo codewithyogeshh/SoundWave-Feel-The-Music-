@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.os.StatFs
 import android.provider.MediaStore
 import android.provider.Settings
 import androidx.core.content.FileProvider
@@ -239,6 +240,15 @@ class MainActivity : AudioServiceActivity() {
                             runOnUiThread { result.success(removed) }
                         } catch (error: Exception) {
                             runOnUiThread { result.success(false) }
+                        }
+                    }.start()
+
+                    "freeSpace" -> Thread {
+                        try {
+                            val stats = StatFs(Environment.getDataDirectory().path)
+                            runOnUiThread { result.success(stats.availableBytes) }
+                        } catch (error: Exception) {
+                            runOnUiThread { result.success(null) }
                         }
                     }.start()
 

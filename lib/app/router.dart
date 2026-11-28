@@ -4,6 +4,7 @@ import 'package:soundwave/app/presentation/main_shell.dart';
 import 'package:soundwave/core/widgets/premium_transitions.dart';
 import 'package:soundwave/features/library/presentation/playlist_detail_screen.dart';
 import 'package:soundwave/features/online/presentation/downloads_screen.dart';
+import 'package:soundwave/features/online/presentation/storage_manager_screen.dart';
 import 'package:soundwave/features/player/presentation/equalizer_screen.dart';
 import 'package:soundwave/features/player/presentation/now_playing_screen.dart';
 
@@ -61,6 +62,11 @@ final appRouter = GoRouter(
         const DownloadsScreen(),
         begin: const Offset(0, 0.06),
       ),
+    ),
+    GoRoute(
+      path: '/storage',
+      pageBuilder: (context, state) =>
+          _premiumPage(state, const StorageManagerScreen()),
     ),
     GoRoute(
       path: '/playlist/:id',

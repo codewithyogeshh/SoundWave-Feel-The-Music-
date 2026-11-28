@@ -492,6 +492,19 @@ class DownloadService {
     return total;
   }
 
+  /// Free space on the phone, so the Storage Manager can show what is left.
+  /// Returns null when the size cannot be read.
+  static Future<int?> deviceFreeBytes() async {
+    if (!Platform.isAndroid) return null;
+    try {
+      final bytes = await _mediaChannel.invokeMethod<num>('freeSpace');
+      return bytes?.toInt();
+    } catch (error) {
+      debugPrint('Could not read free space: $error');
+      return null;
+    }
+  }
+
   /// Combined on-device size of [songs], for the Downloads storage summary.
   static Future<int> totalDownloadedBytes(Iterable<SongModel> songs) async {
     var total = 0;

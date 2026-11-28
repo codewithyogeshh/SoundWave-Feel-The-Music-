@@ -564,6 +564,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ),
               const SizedBox(height: 10),
 
+              _buildSettingsTile(
+                icon: Icons.pie_chart_rounded,
+                title: 'Storage Manager',
+                subtitle: 'Space used, size of each song, clean-up',
+                iconColor: currentTheme.primaryAccent,
+                onTap: () => context.push('/storage'),
+              ),
+              const SizedBox(height: 10),
+
               const SizedBox(height: 26),
 
               // Battery & Device
