@@ -553,7 +553,13 @@ class LyricsSyncControls extends ConsumerWidget {
         child: SizedBox(
           width: buttonSize,
           height: buttonSize,
-          child: Icon(icon, size: compact ? 13 : 17, color: activeTheme.primaryAccent),
+          child: Icon(
+            icon,
+            size: compact ? 13 : 17,
+            color: compact
+                ? activeTheme.primaryAccent
+                : Colors.white.withValues(alpha: 0.75),
+          ),
         ),
       );
     }
@@ -562,14 +568,16 @@ class LyricsSyncControls extends ConsumerWidget {
       message: 'Lyrics sync — tap the value to reset',
       child: Container(
         padding: EdgeInsets.symmetric(horizontal: compact ? 2 : 4, vertical: compact ? 1 : 3),
-        decoration: BoxDecoration(
-          color: activeTheme.primaryAccent.withValues(alpha: 0.10),
-          borderRadius: BorderRadius.circular(compact ? 7 : 10),
-          border: Border.all(
-            color: activeTheme.primaryAccent.withValues(alpha: 0.32),
-            width: 0.8,
-          ),
-        ),
+        decoration: compact
+            ? BoxDecoration(
+                color: activeTheme.primaryAccent.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(7),
+                border: Border.all(
+                  color: activeTheme.primaryAccent.withValues(alpha: 0.32),
+                  width: 0.8,
+                ),
+              )
+            : null,
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -588,9 +596,11 @@ class LyricsSyncControls extends ConsumerWidget {
                 child: Text(
                   _label(offsetMs),
                   style: TextStyle(
-                    color: offsetMs == 0
-                        ? AppColors.textMuted
-                        : activeTheme.primaryAccent,
+                    color: compact
+                        ? (offsetMs == 0
+                              ? AppColors.textMuted
+                              : activeTheme.primaryAccent)
+                        : Colors.white.withValues(alpha: 0.75),
                     fontSize: textSize,
                     fontWeight: FontWeight.w700,
                     fontFeatures: const [FontFeature.tabularFigures()],

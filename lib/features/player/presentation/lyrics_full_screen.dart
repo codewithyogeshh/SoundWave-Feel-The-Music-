@@ -7,7 +7,6 @@ import 'package:soundwave/core/widgets/app_background.dart';
 import 'package:soundwave/features/player/presentation/widgets/lyrics_viewer.dart';
 import 'package:soundwave/features/player/services/lyrics_service.dart';
 import 'package:soundwave/shared/providers/player_provider.dart';
-import 'package:soundwave/shared/providers/theme_provider.dart';
 
 /// Immersive, edge-to-edge lyrics screen: the active line sits in the exact
 /// middle of the screen and playback controls live at the bottom.
@@ -24,7 +23,6 @@ class _LyricsFullScreenState extends ConsumerState<LyricsFullScreen> {
   @override
   Widget build(BuildContext context) {
     final playerState = ref.watch(playerProvider);
-    final activeTheme = ref.watch(themeProvider);
     final fromCache = ref.watch(lyricsFromCacheProvider);
     final loadedLyrics = ref.watch(currentSongLyricsProvider).asData?.value;
     final plainOnly =
@@ -88,38 +86,31 @@ class _LyricsFullScreenState extends ConsumerState<LyricsFullScreen> {
                         ],
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: activeTheme.primaryAccent.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (fromCache) ...[
-                            Icon(
-                              Icons.offline_pin_rounded,
-                              size: 10,
-                              color: activeTheme.primaryAccent,
-                            ),
-                            const SizedBox(width: 3),
-                          ],
-                          Text(
-                            plainOnly
-                                ? 'LYRICS • NO TIMING'
-                                : fromCache
-                                ? 'LYRICS • SAVED'
-                                : 'LYRICS',
-                            style: TextStyle(
-                              color: activeTheme.primaryAccent,
-                              fontSize: 9.5,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 1,
-                            ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (fromCache) ...[
+                          Icon(
+                            Icons.offline_pin_rounded,
+                            size: 11,
+                            color: Colors.white.withValues(alpha: 0.55),
                           ),
+                          const SizedBox(width: 4),
                         ],
-                      ),
+                        Text(
+                          plainOnly
+                              ? 'NO TIMING'
+                              : fromCache
+                              ? 'SAVED'
+                              : 'LYRICS',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.55),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -144,8 +135,8 @@ class _LyricsFullScreenState extends ConsumerState<LyricsFullScreen> {
                     SliderTheme(
                       data: SliderTheme.of(context).copyWith(
                         trackHeight: 3,
-                        activeTrackColor: activeTheme.highlightColor,
-                        inactiveTrackColor: Colors.white.withValues(alpha: 0.15),
+                        activeTrackColor: Colors.white.withValues(alpha: 0.85),
+                        inactiveTrackColor: Colors.white.withValues(alpha: 0.16),
                         thumbColor: Colors.white,
                         thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5.5),
                         overlayShape: const RoundSliderOverlayShape(overlayRadius: 13),
@@ -200,21 +191,14 @@ class _LyricsFullScreenState extends ConsumerState<LyricsFullScreen> {
                         Container(
                           width: 56,
                           height: 56,
-                          decoration: BoxDecoration(
+                          decoration: const BoxDecoration(
                             shape: BoxShape.circle,
-                            gradient: activeTheme.accentGradient,
-                            boxShadow: [
-                              BoxShadow(
-                                color: activeTheme.highlightColor.withValues(alpha: 0.35),
-                                blurRadius: 18,
-                                spreadRadius: 1,
-                              ),
-                            ],
+                            color: Colors.white,
                           ),
                           child: IconButton(
                             tooltip: playerState.isPlaying ? 'Pause' : 'Play',
                             iconSize: 30,
-                            color: activeTheme.onAccentGradient,
+                            color: Colors.black87,
                             icon: Icon(
                               playerState.isPlaying
                                   ? Icons.pause_rounded
