@@ -56,151 +56,296 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Stack(
           children: [
-            Padding(
-              padding: const EdgeInsets.only(left: 20, right: 20, top: 16, bottom: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 42,
-                          height: 42,
-                          decoration: BoxDecoration(
-                            gradient: activeTheme.primaryGradient,
-                            borderRadius: BorderRadius.circular(14),
-                            boxShadow: [
-                              BoxShadow(
-                                color: activeTheme.primaryAccent.withValues(alpha: 0.45),
-                                blurRadius: 16,
-                                spreadRadius: 1,
-                              ),
-                            ],
-                          ),
-                          child: Icon(
-                            Icons.library_music_rounded,
-                            color: activeTheme.onPrimaryGradient,
-                            size: 22,
-                          ),
-                        ),
-                        const SizedBox(width: 11),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              ShaderMask(
-                                shaderCallback: (rect) =>
-                                    activeTheme.primaryGradient.createShader(rect),
-                                blendMode: BlendMode.srcIn,
-                                child: Text(
-                                  'Your Library',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: AppTextStyles.screenTitle.copyWith(
-                                    fontSize: 26,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: -0.4,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                              Text(
-                                'Songs, playlists & favorites',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: AppTextStyles.subtitle.copyWith(
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w600,
-                                  color: activeTheme.highlightColor.withValues(alpha: 0.92),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+            _LibraryAmbientGlow(theme: activeTheme),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildHeader(activeTheme, libState),
+                _buildStatsStrip(activeTheme, libState),
+                const SizedBox(height: 14),
+                _buildTabBar(activeTheme, libState),
+                const SizedBox(height: 6),
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    physics: const BouncingScrollPhysics(),
+                    children: [
+                      _buildPlaylistsTab(libState.playlists),
+                      _buildSongsTab(libState.allSongs, libState.favoriteIds, libState.recentlyPlayedIds),
+                      _buildFavoritesTab(libState.favoriteSongs, libState.favoriteIds, libState.recentlyPlayedIds),
+                      _buildRecentlyPlayedTab(libState.recentlyPlayedSongs, libState.favoriteIds, libState.recentlyPlayedIds, activeTheme, libState.recentlyPlayedTimes),
+                      _buildDeviceAudioTab(libState),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Decorated library chrome: hero header, quick stats and pill tabs.
+  // ---------------------------------------------------------------------------
+
+  Widget _buildHeader(AppThemeType activeTheme, LibraryState libState) {
+    final totalSongs = libState.allSongs.length;
+    final playlistCount = libState.playlists.length;
+    final downloadCount = libState.downloadedSongs.length;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 14, 16, 12),
+      child: Row(
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              gradient: activeTheme.primaryGradient,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: activeTheme.primaryAccent.withValues(alpha: 0.55),
+                  blurRadius: 22,
+                  spreadRadius: 1,
+                ),
+              ],
+            ),
+            child: Icon(
+              Icons.library_music_rounded,
+              color: activeTheme.onPrimaryGradient,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ShaderMask(
+                  shaderCallback: (rect) =>
+                      activeTheme.primaryGradient.createShader(rect),
+                  blendMode: BlendMode.srcIn,
+                  child: Text(
+                    'Your Library',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.screenTitle.copyWith(
+                      fontSize: 27,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.6,
+                      color: Colors.white,
                     ),
                   ),
-                  Row(
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  '$totalSongs songs • $playlistCount playlists • $downloadCount downloaded',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.subtitle.copyWith(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary.withValues(alpha: 0.88),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          _buildHeaderAction(
+            icon: Icons.download_for_offline_outlined,
+            tooltip: 'Downloads & storage',
+            activeTheme: activeTheme,
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const DownloadsScreen()),
+              );
+            },
+          ),
+          const SizedBox(width: 8),
+          GradientButton.circle(
+            size: 40,
+            gradient: activeTheme.accentGradient,
+            glowColor: activeTheme.primaryAccent,
+            onPressed: () => _showCreatePlaylistDialog(context),
+            child: Icon(
+              Icons.add_rounded,
+              color: activeTheme.onAccentGradient,
+              size: 23,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeaderAction({
+    required IconData icon,
+    required String tooltip,
+    required AppThemeType activeTheme,
+    required VoidCallback onTap,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: AppColors.glassWhite,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: activeTheme.highlightColor.withValues(alpha: 0.22),
+            ),
+          ),
+          child: Icon(icon, color: Colors.white, size: 21),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatsStrip(AppThemeType activeTheme, LibraryState libState) {
+    final stats = [
+      _LibStat('Songs', libState.allSongs.length, Icons.music_note_rounded, 1),
+      _LibStat('Playlists', libState.playlists.length, Icons.queue_music_rounded, 0),
+      _LibStat('Favorites', libState.favoriteIds.length, Icons.favorite_rounded, 2),
+      _LibStat('Device', libState.localSongs.length, Icons.smartphone_rounded, 4),
+    ];
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(vertical: 9),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            activeTheme.primaryAccent.withValues(alpha: 0.22),
+            AppColors.glassWhite.withValues(alpha: 0.04),
+          ],
+        ),
+        border: Border.all(
+          color: activeTheme.highlightColor.withValues(alpha: 0.26),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: activeTheme.primaryAccent.withValues(alpha: 0.18),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          for (var i = 0; i < stats.length; i++) ...[
+            if (i > 0)
+              Container(
+                width: 1,
+                height: 28,
+                color: AppColors.glassBorderSubtle,
+              ),
+            Expanded(
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: () => _tabController.animateTo(stats[i].tab),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      IconButton(
-                        tooltip: 'Downloads & storage',
-                        icon: const Icon(
-                          Icons.download_for_offline_outlined,
-                          color: Colors.white,
-                          size: 22,
-                        ),
-                        onPressed: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const DownloadsScreen(),
-                            ),
-                          );
-                        },
+                      Icon(
+                        stats[i].icon,
+                        size: 16,
+                        color: activeTheme.highlightColor,
                       ),
-                      GradientButton.circle(
-                        size: 38,
-                        gradient: activeTheme.accentGradient,
-                        glowColor: activeTheme.primaryAccent,
-                        onPressed: () => _showCreatePlaylistDialog(context),
-                        child: Icon(
-                          Icons.add_rounded,
-                          color: activeTheme.onAccentGradient,
-                          size: 22,
+                      const SizedBox(height: 5),
+                      Text(
+                        '${stats[i].value}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                          height: 1,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        stats[i].label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.3,
                         ),
                       ),
                     ],
                   ),
-                ],
-              ),
-            ),
-
-            // Tab Bar
-            TabBar(
-              controller: _tabController,
-              isScrollable: true,
-              tabAlignment: TabAlignment.start,
-              indicatorColor: activeTheme.primaryAccent,
-              indicatorWeight: 3,
-              indicatorSize: TabBarIndicatorSize.label,
-              labelColor: Colors.white,
-              unselectedLabelColor: AppColors.textMuted,
-              labelPadding: const EdgeInsets.symmetric(horizontal: 14),
-              labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, letterSpacing: -0.2),
-              unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
-              dividerColor: Colors.transparent,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              tabs: [
-                Tab(text: 'Playlists (${libState.playlists.length})'),
-                Tab(text: 'Songs (${libState.allSongs.length})'),
-                Tab(text: 'Favorites (${libState.favoriteIds.length})'),
-                Tab(text: 'Recently Played (${libState.recentlyPlayedSongs.length})'),
-                Tab(text: 'Device Audio (${libState.localSongs.length})'),
-              ],
-            ),
-
-            const SizedBox(height: 8),
-
-            // Tab Views
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                physics: const BouncingScrollPhysics(),
-                children: [
-                  _buildPlaylistsTab(libState.playlists),
-                  _buildSongsTab(libState.allSongs, libState.favoriteIds, libState.recentlyPlayedIds),
-                  _buildFavoritesTab(libState.favoriteSongs, libState.favoriteIds, libState.recentlyPlayedIds),
-                  _buildRecentlyPlayedTab(libState.recentlyPlayedSongs, libState.favoriteIds, libState.recentlyPlayedIds, activeTheme, libState.recentlyPlayedTimes),
-                  _buildDeviceAudioTab(libState),
-                ],
+                ),
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabBar(AppThemeType activeTheme, LibraryState libState) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: AppColors.glassWhite,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.glassBorderSubtle),
+      ),
+      child: TabBar(
+        controller: _tabController,
+        isScrollable: true,
+        tabAlignment: TabAlignment.start,
+        indicator: BoxDecoration(
+          gradient: activeTheme.accentGradient,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: activeTheme.primaryAccent.withValues(alpha: 0.45),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
+        indicatorSize: TabBarIndicatorSize.tab,
+        indicatorPadding: EdgeInsets.zero,
+        labelColor: Colors.white,
+        unselectedLabelColor: AppColors.textMuted,
+        labelPadding: const EdgeInsets.symmetric(horizontal: 13),
+        labelStyle: const TextStyle(
+          fontWeight: FontWeight.w800,
+          fontSize: 12.5,
+          letterSpacing: -0.2,
+        ),
+        unselectedLabelStyle: const TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 12.5,
+        ),
+        dividerColor: Colors.transparent,
+        splashFactory: NoSplash.splashFactory,
+        tabs: [
+          Tab(height: 36, text: 'Playlists ${libState.playlists.length}'),
+          Tab(height: 36, text: 'Songs ${libState.allSongs.length}'),
+          Tab(height: 36, text: 'Favorites ${libState.favoriteIds.length}'),
+          Tab(height: 36, text: 'Recent ${libState.recentlyPlayedSongs.length}'),
+          Tab(height: 36, text: 'Device ${libState.localSongs.length}'),
+        ],
       ),
     );
   }
@@ -216,9 +361,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       );
     }
 
-    return ListView.builder(
+    final activeTheme = ref.watch(themeProvider);
+
+    return GridView.builder(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.only(left: 20, right: 20, top: 8, bottom: 175),
+      padding: const EdgeInsets.only(left: 20, right: 20, top: 10, bottom: 175),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        childAspectRatio: 0.84,
+      ),
       itemCount: playlists.length,
       itemBuilder: (context, index) {
         final pl = playlists[index];
@@ -226,138 +379,190 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         final coverArt = (firstSong?.artworkPath?.isNotEmpty ?? false)
             ? firstSong!.artworkPath
             : pl.coverImage;
-        return Container(
-          margin: const EdgeInsets.symmetric(vertical: 4),
-          child: GlassCard(
-            borderRadius: 16,
-            blur: 0,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            color: AppColors.glassWhiteMedium,
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => PlaylistDetailScreen(playlistId: pl.id),
-                ),
-              );
-            },
-            child: Row(
+        return _buildPlaylistCard(activeTheme, pl, firstSong, coverArt);
+      },
+    );
+  }
+
+  Widget _buildPlaylistCard(
+    AppThemeType activeTheme,
+    PlaylistModel pl,
+    SongModel? firstSong,
+    String? coverArt,
+  ) {
+    return GlassCard(
+      borderRadius: 22,
+      blur: 0,
+      padding: EdgeInsets.zero,
+      color: AppColors.glassWhiteMedium,
+      borderColor: activeTheme.highlightColor.withValues(alpha: 0.24),
+      shadows: [
+        BoxShadow(
+          color: activeTheme.primaryAccent.withValues(alpha: 0.2),
+          blurRadius: 18,
+          offset: const Offset(0, 10),
+        ),
+      ],
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => PlaylistDetailScreen(playlistId: pl.id),
+          ),
+        );
+      },
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          AlbumArtwork(
+            size: 200,
+            borderRadius: 0,
+            artworkUrl: coverArt,
+            albumId: firstSong?.albumId,
+            songId: firstSong?.rawId,
+            songTitle: pl.name,
+          ),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.transparent,
+                  activeTheme.primaryBackground.withValues(alpha: 0.22),
+                  activeTheme.deepBackground.withValues(alpha: 0.94),
+                ],
+                stops: const [0.34, 0.6, 1.0],
+              ),
+            ),
+          ),
+          Positioned(
+            left: 12,
+            right: 12,
+            bottom: 11,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                AlbumArtwork(
-                  size: 46,
-                  borderRadius: 12,
-                  artworkUrl: coverArt,
-                  albumId: firstSong?.albumId,
-                  songId: firstSong?.rawId,
-                  songTitle: pl.name,
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        pl.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTextStyles.songTitle.copyWith(fontSize: 14),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${pl.songCount} Songs • ${pl.isCustom ? "Custom" : "Curated"}',
-                        style: AppTextStyles.artistName.copyWith(
-                          fontSize: 11,
-                          color: AppColors.textMuted,
-                        ),
-                      ),
-                    ],
+                Text(
+                  pl.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.songTitle.copyWith(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
-                PopupMenuButton<String>(
-                  icon: const Icon(
-                    Icons.more_vert_rounded,
+                const SizedBox(height: 2),
+                Text(
+                  '${pl.songCount} songs • ${pl.isCustom ? "Custom" : "Curated"}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.artistName.copyWith(
+                    fontSize: 10.5,
                     color: AppColors.textMuted,
-                    size: 20,
                   ),
-                  color: AppColors.secondaryBackground,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    side: const BorderSide(
-                      color: AppColors.glassBorderSubtle,
-                    ),
-                  ),
-                  onSelected: (val) {
-                    if (val == 'play') {
-                      if (pl.songs.isNotEmpty) {
-                        ref.read(playerProvider.notifier).playTrack(
-                              pl.songs.first,
-                              queue: pl.songs,
-                            );
-                      }
-                    } else if (val == 'shuffle') {
-                      if (pl.songs.isNotEmpty) {
-                        final shuffled = List<SongModel>.of(pl.songs)
-                          ..shuffle();
-                        ref.read(playerProvider.notifier).playTrack(
-                              shuffled.first,
-                              queue: shuffled,
-                            );
-                      }
-                    } else if (val == 'rename') {
-                      _showRenamePlaylistDialog(context, pl);
-                    } else if (val == 'delete') {
-                      _showDeletePlaylistDialog(context, pl);
-                    }
-                  },
-                  itemBuilder: (ctx) => [
-                    const PopupMenuItem(
-                      value: 'play',
-                      child: Row(
-                        children: [
-                          Icon(Icons.play_arrow_rounded, color: AppColors.neonBlue, size: 20),
-                          SizedBox(width: 10),
-                          Text('Play All', style: TextStyle(color: Colors.white, fontSize: 13)),
-                        ],
-                      ),
-                    ),
-                    const PopupMenuItem(
-                      value: 'shuffle',
-                      child: Row(
-                        children: [
-                          Icon(Icons.shuffle_rounded, color: AppColors.purple, size: 18),
-                          SizedBox(width: 10),
-                          Text('Shuffle Play', style: TextStyle(color: Colors.white, fontSize: 13)),
-                        ],
-                      ),
-                    ),
-                    if (pl.isCustom) ...[
-                      const PopupMenuItem(
-                        value: 'rename',
-                        child: Row(
-                          children: [
-                            Icon(Icons.edit_outlined, color: AppColors.purple, size: 18),
-                            SizedBox(width: 10),
-                            Text('Rename', style: TextStyle(color: Colors.white, fontSize: 13)),
-                          ],
-                        ),
-                      ),
-                      const PopupMenuItem(
-                        value: 'delete',
-                        child: Row(
-                          children: [
-                            Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 18),
-                            SizedBox(width: 10),
-                            Text('Delete', style: TextStyle(color: Colors.redAccent, fontSize: 13)),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ],
                 ),
               ],
             ),
           ),
-        );
-      },
+          Positioned(
+            top: 6,
+            right: 6,
+            child: _buildPlaylistMenu(activeTheme, pl),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPlaylistMenu(AppThemeType activeTheme, PlaylistModel pl) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.38),
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+      ),
+      child: PopupMenuButton<String>(
+        padding: EdgeInsets.zero,
+        iconSize: 18,
+        tooltip: 'Playlist options',
+        color: activeTheme.secondaryBackground,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: const BorderSide(color: AppColors.glassBorderSubtle),
+        ),
+        icon: const Icon(
+          Icons.more_vert_rounded,
+          color: Colors.white,
+          size: 18,
+        ),
+        onSelected: (val) {
+          if (val == 'play') {
+            if (pl.songs.isNotEmpty) {
+              ref.read(playerProvider.notifier).playTrack(
+                    pl.songs.first,
+                    queue: pl.songs,
+                  );
+            }
+          } else if (val == 'shuffle') {
+            if (pl.songs.isNotEmpty) {
+              final shuffled = List<SongModel>.of(pl.songs)..shuffle();
+              ref.read(playerProvider.notifier).playTrack(
+                    shuffled.first,
+                    queue: shuffled,
+                  );
+            }
+          } else if (val == 'rename') {
+            _showRenamePlaylistDialog(context, pl);
+          } else if (val == 'delete') {
+            _showDeletePlaylistDialog(context, pl);
+          }
+        },
+        itemBuilder: (ctx) => [
+          const PopupMenuItem(
+            value: 'play',
+            child: Row(
+              children: [
+                Icon(Icons.play_arrow_rounded, color: AppColors.neonBlue, size: 20),
+                SizedBox(width: 10),
+                Text('Play All', style: TextStyle(color: Colors.white, fontSize: 13)),
+              ],
+            ),
+          ),
+          const PopupMenuItem(
+            value: 'shuffle',
+            child: Row(
+              children: [
+                Icon(Icons.shuffle_rounded, color: AppColors.purple, size: 18),
+                SizedBox(width: 10),
+                Text('Shuffle Play', style: TextStyle(color: Colors.white, fontSize: 13)),
+              ],
+            ),
+          ),
+          if (pl.isCustom) ...[
+            const PopupMenuItem(
+              value: 'rename',
+              child: Row(
+                children: [
+                  Icon(Icons.edit_outlined, color: AppColors.purple, size: 18),
+                  SizedBox(width: 10),
+                  Text('Rename', style: TextStyle(color: Colors.white, fontSize: 13)),
+                ],
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'delete',
+              child: Row(
+                children: [
+                  Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 18),
+                  SizedBox(width: 10),
+                  Text('Delete', style: TextStyle(color: Colors.redAccent, fontSize: 13)),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
@@ -1085,4 +1290,68 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       descController.dispose();
     });
   }
+}
+/// Soft theme-coloured light bleeding in behind the library content.
+class _LibraryAmbientGlow extends StatelessWidget {
+  const _LibraryAmbientGlow({required this.theme});
+
+  final AppThemeType theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: Stack(
+          children: [
+            Positioned(
+              top: -70,
+              right: -50,
+              width: 250,
+              height: 250,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      theme.primaryAccent.withValues(alpha: 0.30),
+                      theme.highlightColor.withValues(alpha: 0.10),
+                      Colors.transparent,
+                    ],
+                    stops: const [0.0, 0.55, 1.0],
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 110,
+              left: -90,
+              width: 230,
+              height: 230,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      theme.secondaryAccent.withValues(alpha: 0.20),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// One quick-stat tile in the library header strip.
+class _LibStat {
+  final String label;
+  final int value;
+  final IconData icon;
+  final int tab;
+
+  const _LibStat(this.label, this.value, this.icon, this.tab);
 }
