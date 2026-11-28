@@ -21,6 +21,7 @@ class LibraryStorageService {
   static const String _keyPlaylists = 'sw_playlists';
   static const String _keyFavorites = 'sw_favorites';
   static const String _keyRecentlyPlayed = 'sw_recently_played';
+  static const String _keyRecentlyPlayedSongs = 'sw_recently_played_songs';
   static const String _keyRecentSearches = 'sw_recent_searches';
   static const String _keyTotalSongsPlayed = 'sw_stats_songs_played';
   static const String _keyUserProfile = 'sw_user_profile';
@@ -219,6 +220,37 @@ class LibraryStorageService {
     }
     await _prefs.setStringList(_keyRecentlyPlayed, list);
     await incrementTotalSongsPlayed();
+  }
+
+  /// Full songs (not just ids) so history also works for online tracks that
+  /// are not in the device library.
+  List<SongModel> getRecentlyPlayedSongs() {
+    final raw = _prefs.getStringList(_keyRecentlyPlayedSongs);
+    if (raw == null || raw.isEmpty) return [];
+    try {
+      return raw.map((str) => SongModel.fromJson(str)).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> addRecentlyPlayedSong(SongModel song) async {
+    if (song.id.isEmpty) return;
+    final current = getRecentlyPlayedSongs();
+    current.removeWhere((s) => s.id == song.id);
+    current.insert(0, song);
+    final trimmed = current.length > 50 ? current.sublist(0, 50) : current;
+    await _prefs.setStringList(
+      _keyRecentlyPlayedSongs,
+      trimmed.map((s) => s.toJson()).toList(),
+    );
+    // Keeps the id list and play-count stats in step with the history.
+    await addRecentlyPlayed(song.id);
+  }
+
+  Future<void> clearRecentlyPlayedSongs() async {
+    await _prefs.remove(_keyRecentlyPlayedSongs);
+    await _prefs.remove(_keyRecentlyPlayed);
   }
 
   // --- RECENT SEARCHES ---

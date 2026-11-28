@@ -99,6 +99,10 @@ class PlayerNotifier extends Notifier<PlayerState> {
   bool _awaitingTrackConfirmation = false;
   SongModel? _expectedSongDuringPending;
 
+  /// Last track written to the listening history, so a repeated media event
+  /// for the same song does not add it twice in a row.
+  String? _lastRecordedSongId;
+
   @override
   PlayerState build() {
     _isDisposed = false;
@@ -223,6 +227,7 @@ class PlayerNotifier extends Notifier<PlayerState> {
               ? item.duration
               : updatedSong.duration,
         );
+        _recordHistory(updatedSong);
       } else if (state.queue.isNotEmpty &&
           _handler.currentIndex >= 0 &&
           _handler.currentIndex < state.queue.length) {
@@ -235,6 +240,7 @@ class PlayerNotifier extends Notifier<PlayerState> {
               ? item.duration
               : fallback.duration,
         );
+        _recordHistory(fallback);
       }
     });
   }
@@ -251,6 +257,25 @@ class PlayerNotifier extends Notifier<PlayerState> {
       return true;
     }
     return false;
+  }
+
+  /// Saves the track that just started into the listening history, so it can
+  /// be replayed later without searching for it again. Online songs are kept
+  /// as full song records, not just ids.
+  void _recordHistory(SongModel? song) {
+    if (song == null || song.id.isEmpty) return;
+    if (_lastRecordedSongId == song.id) return;
+    _lastRecordedSongId = song.id;
+    try {
+      unawaited(
+        ref
+            .read(libraryProvider.notifier)
+            .recordPlayed(song)
+            .catchError((Object _) {}),
+      );
+    } catch (_) {
+      // Allows isolated tests without libraryProvider overrides.
+    }
   }
 
   void _beginTrackConfirmation(SongModel? expected) {

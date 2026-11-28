@@ -409,6 +409,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               const SliverToBoxAdapter(child: SizedBox(height: 16)),
             ],
 
+            // 5b. Listening history: everything played, online songs included,
+            // so a song can be replayed without searching again.
+            if (libState.recentlyPlayedSongs.isNotEmpty) ...[
+              SliverToBoxAdapter(
+                child: SectionHeader(
+                  title: 'Recently played',
+                  actionText: 'View all',
+                  onActionTap: widget.onNavigateToLibrary,
+                ),
+              ),
+              SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final song = libState.recentlyPlayedSongs[index];
+                    return OnlineSongTile(
+                      song: song,
+                      playlist: libState.recentlyPlayedSongs,
+                    );
+                  },
+                  childCount: libState.recentlyPlayedSongs.length.clamp(0, 4),
+                ),
+              ),
+              const SliverToBoxAdapter(child: SizedBox(height: 16)),
+            ],
+
             // 6. Selected Genre / All Online Songs Feed
             SliverToBoxAdapter(
               child: SectionHeader(

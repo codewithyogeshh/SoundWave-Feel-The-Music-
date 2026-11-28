@@ -18,6 +18,7 @@ class LibraryState {
   final List<PlaylistModel> playlists;
   final Set<String> favoriteIds;
   final List<String> recentlyPlayedIds;
+  final List<SongModel> recentlyPlayedSongs;
   final bool isScanning;
   final String? scanError;
 
@@ -28,6 +29,7 @@ class LibraryState {
     this.playlists = const [],
     this.favoriteIds = const {},
     this.recentlyPlayedIds = const [],
+    this.recentlyPlayedSongs = const [],
     this.isScanning = false,
     this.scanError,
   });
@@ -39,11 +41,6 @@ class LibraryState {
 
   bool isDownloaded(String songId) => downloadedSongs.any((s) => s.id == songId);
 
-  List<SongModel> get recentlyPlayedSongs => recentlyPlayedIds
-      .map((id) => allSongs.where((s) => s.id == id).firstOrNull)
-      .whereType<SongModel>()
-      .toList();
-
   LibraryState copyWith({
     List<SongModel>? allSongs,
     List<SongModel>? localSongs,
@@ -51,6 +48,7 @@ class LibraryState {
     List<PlaylistModel>? playlists,
     Set<String>? favoriteIds,
     List<String>? recentlyPlayedIds,
+    List<SongModel>? recentlyPlayedSongs,
     bool? isScanning,
     String? scanError,
   }) {
@@ -61,6 +59,7 @@ class LibraryState {
       playlists: playlists ?? this.playlists,
       favoriteIds: favoriteIds ?? this.favoriteIds,
       recentlyPlayedIds: recentlyPlayedIds ?? this.recentlyPlayedIds,
+      recentlyPlayedSongs: recentlyPlayedSongs ?? this.recentlyPlayedSongs,
       isScanning: isScanning ?? this.isScanning,
       scanError: scanError,
     );
@@ -134,6 +133,7 @@ class LibraryNotifier extends Notifier<LibraryState> {
       playlists: _storage.getPlaylists(),
       favoriteIds: _storage.getFavoriteIds(),
       recentlyPlayedIds: _storage.getRecentlyPlayedIds(),
+      recentlyPlayedSongs: _storage.getRecentlyPlayedSongs(),
     );
   }
 
@@ -273,9 +273,10 @@ class LibraryNotifier extends Notifier<LibraryState> {
   bool isFavorite(String songId) => state.favoriteIds.contains(songId);
 
   Future<void> recordPlayed(SongModel song) async {
-    await _storage.addRecentlyPlayed(song.id);
+    await _storage.addRecentlyPlayedSong(song);
     state = state.copyWith(
       recentlyPlayedIds: _storage.getRecentlyPlayedIds(),
+      recentlyPlayedSongs: _storage.getRecentlyPlayedSongs(),
     );
   }
 
