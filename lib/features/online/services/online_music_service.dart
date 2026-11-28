@@ -4,6 +4,25 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:soundwave/features/player/models/song_model.dart';
 
+/// One page of online search results, with enough information for the search
+/// screen to keep loading the next page while the user scrolls.
+class OnlineSearchPage {
+  final List<SongModel> songs;
+  final bool hasMore;
+  final int total;
+
+  const OnlineSearchPage({
+    required this.songs,
+    required this.hasMore,
+    required this.total,
+  });
+
+  const OnlineSearchPage.empty()
+      : songs = const [],
+        hasMore = false,
+        total = 0;
+}
+
 class OnlineMusicService {
   static const String _mobileBaseUrl = 'https://www.jiosaavn.com/api.php';
 
@@ -51,36 +70,165 @@ class OnlineMusicService {
     }
   }
 
-  /// Search online songs by query string
+  /// How many results one search request asks JioSaavn for. The API caps a
+  /// single page at 40 songs, so search scrolls page by page instead of
+  /// stopping after the first batch.
+  static const int searchPageSize = 40;
+
+  /// Search online songs by query string (first page only).
   static Future<List<SongModel>> searchSongs(String query) async {
+    final page = await searchPage(query);
+    return page.songs;
+  }
+
+  /// Fetches one page of online search results and reports whether more pages
+  /// exist, so the search screen can keep loading songs while scrolling.
+  static Future<OnlineSearchPage> searchPage(
+    String query, {
+    int page = 1,
+  }) async {
     final trimmed = query.trim();
-    if (trimmed.isEmpty) return [];
+    if (trimmed.isEmpty) return const OnlineSearchPage.empty();
 
     try {
       final uri = Uri.parse(
-        '$_directBaseUrl?__call=search.getResults&$_commonParams&p=1&n=25&q=${Uri.encodeComponent(trimmed)}',
+        '$_directBaseUrl?__call=search.getResults&$_commonParams&p=$page&n=$searchPageSize&q=${Uri.encodeComponent(trimmed)}',
       );
-      final response = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 8));
+      final response =
+          await http.get(uri, headers: _headers).timeout(const Duration(seconds: 8));
 
       if (response.statusCode == 200) {
-        final data = json.decode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+        final data =
+            json.decode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
         final results = data['results'] as List<dynamic>? ?? [];
 
-        final songs = <SongModel>[];
+        var songs = <SongModel>[];
         for (final item in results) {
           final parsed = _parseSongFromApi(item as Map<String, dynamic>);
-          if (parsed != null) {
-            songs.add(parsed);
-          }
+          if (parsed != null) songs.add(parsed);
         }
-        if (songs.isNotEmpty) return songs;
+
+        // First page: keep the songs that really match what was typed and put
+        // the closest matches on top instead of the API's raw order.
+        if (page == 1) songs = _orderByRelevance(songs, trimmed);
+        songs = _dropExactDuplicates(songs);
+
+        final total = int.tryParse(data['total']?.toString() ?? '') ?? songs.length;
+        final start = int.tryParse(data['start']?.toString() ?? '') ?? 1;
+        final loaded = start - 1 + (results.isEmpty ? 0 : songs.length);
+        return OnlineSearchPage(
+          songs: songs,
+          hasMore: songs.isNotEmpty && loaded < total,
+          total: total,
+        );
       }
     } catch (e) {
       debugPrint('Online search error for "$query": $e');
     }
 
     // Fallback search via autocomplete if search.getResults returned no songs
-    return _searchAutocompleteFallback(trimmed);
+    if (page == 1) {
+      return OnlineSearchPage(
+        songs: await _searchAutocompleteFallback(trimmed),
+        hasMore: false,
+        total: 0,
+      );
+    }
+    return const OnlineSearchPage.empty();
+  }
+
+  /// Puts the songs that best match the typed words first and drops results
+  /// that match none of them, so a search never lists unrelated tracks.
+  static List<SongModel> _orderByRelevance(List<SongModel> songs, String query) {
+    final needle = query.toLowerCase();
+    final words =
+        needle.split(RegExp(r'\s+')).where((w) => w.length > 1).toList();
+
+    int score(SongModel song) {
+      final title = song.title.toLowerCase();
+      final artist = song.artist.toLowerCase();
+      final album = song.album.toLowerCase();
+      var value = 0;
+      if (title == needle) value += 120;
+      if (title.startsWith(needle)) value += 45;
+      if (title.contains(needle)) value += 28;
+      if (artist.contains(needle)) value += 20;
+      if (album.contains(needle)) value += 8;
+      for (final word in words) {
+        if (title.contains(word)) value += 6;
+        if (artist.contains(word)) value += 4;
+        if (album.contains(word)) value += 2;
+      }
+      return value;
+    }
+
+    final scored = <MapEntry<int, int>>[
+      for (var i = 0; i < songs.length; i++) MapEntry(i, score(songs[i])),
+    ];
+    final relevant = scored.where((e) => e.value > 0).toList();
+    // Keep everything when the query was so specific that only a few songs
+    // matched; otherwise unrelated tracks would vanish for no reason.
+    final picked = relevant.length >= 6 ? relevant : scored;
+    picked.sort((a, b) {
+      final byScore = b.value.compareTo(a.value);
+      return byScore != 0 ? byScore : a.key.compareTo(b.key);
+    });
+    return [for (final entry in picked) songs[entry.key]];
+  }
+
+  /// Removes the same song listed twice (same title and artist), keeping order.
+  static List<SongModel> _dropExactDuplicates(List<SongModel> songs) {
+    final seen = <String>{};
+    final kept = <SongModel>[];
+    for (final song in songs) {
+      final key =
+          '${song.title.toLowerCase().trim()}|${song.artist.toLowerCase().trim()}';
+      if (seen.add(key)) kept.add(song);
+    }
+    return kept;
+  }
+
+  /// Typing suggestions (songs, artists, playlists) from JioSaavn's
+  /// autocomplete, so search feels live instead of waiting for submit.
+  static Future<List<String>> searchSuggestions(String query) async {
+    final trimmed = query.trim();
+    if (trimmed.length < 2) return const [];
+    try {
+      final uri = Uri.parse(
+        '$_directBaseUrl?__call=autocomplete.get&$_commonParams&includeMetaTags=1&query=${Uri.encodeComponent(trimmed)}',
+      );
+      final response =
+          await http.get(uri, headers: _headers).timeout(const Duration(seconds: 6));
+      if (response.statusCode != 200) return const [];
+      final data =
+          json.decode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+      final suggestions = <String>[];
+      for (final key in const [
+        'topquery',
+        'songs',
+        'artists',
+        'playlists',
+        'albums',
+      ]) {
+        final section = data[key];
+        if (section is! Map<String, dynamic>) continue;
+        for (final item in (section['data'] as List<dynamic>? ?? [])) {
+          if (item is! Map<String, dynamic>) continue;
+          final title = _cleanHtml(item['title']?.toString() ?? '');
+          if (title.isEmpty) continue;
+          if (title.toLowerCase() == trimmed.toLowerCase()) continue;
+          if (suggestions.any((s) => s.toLowerCase() == title.toLowerCase())) {
+            continue;
+          }
+          suggestions.add(title);
+          if (suggestions.length >= 8) return suggestions;
+        }
+      }
+      return suggestions;
+    } catch (e) {
+      debugPrint('Suggestion error for "$query": $e');
+      return const [];
+    }
   }
 
   /// Autocomplete fallback to discover songs when query is an artist or partial phrase
@@ -116,8 +264,75 @@ class OnlineMusicService {
     return [];
   }
 
-  /// Fetch curated trending / chart-topping online songs
-  static Future<List<SongModel>> getTrendingSongs() async {
+  /// Editorial playlists that follow what is trending right now — the
+  /// Instagram reels / viral lists first, then the weekly top 50 charts.
+  static const List<String> trendingPlaylistIds = [
+    '1223482895', // Insta Trending Viral Hits
+    '1269241159', // Trending on Reels
+    '1134543272', // Hindi: India Superhits Top 50
+    '47599074', // Now Trending
+  ];
+
+  /// Songs of one JioSaavn playlist, in playlist order.
+  static Future<List<SongModel>> getPlaylistSongs(String listId) async {
+    if (listId.trim().isEmpty) return const [];
+    try {
+      final uri = Uri.parse(
+        '$_directBaseUrl?__call=playlist.getDetails&$_commonParams&listid=${Uri.encodeComponent(listId.trim())}',
+      );
+      final response =
+          await http.get(uri, headers: _headers).timeout(const Duration(seconds: 10));
+      if (response.statusCode != 200) return const [];
+      final data = json.decode(utf8.decode(response.bodyBytes));
+      if (data is! Map<String, dynamic>) return const [];
+      final songs = <SongModel>[];
+      for (final item in (data['songs'] as List<dynamic>? ?? [])) {
+        if (item is! Map<String, dynamic>) continue;
+        final parsed = _parseSongFromApi(item);
+        if (parsed != null) songs.add(parsed);
+      }
+      return songs;
+    } catch (e) {
+      debugPrint('Playlist error for $listId: $e');
+      return const [];
+    }
+  }
+
+  /// Curated trending list: the reels/viral playlists and the weekly top 50
+  /// are mixed together, so the first rows are the songs people are posting
+  /// on Instagram right now instead of one stale search result.
+  static Future<List<SongModel>> getTrendingSongs({int limit = 60}) async {
+    final lists = await Future.wait(
+      trendingPlaylistIds.map((id) async {
+        final songs = await getPlaylistSongs(id);
+        final seen = <String>{};
+        return songs.where((s) => seen.add(s.id)).take(25).toList();
+      }),
+    );
+
+    final mixed = <SongModel>[];
+    final seenIds = <String>{};
+    final seenTitles = <String>{};
+    var round = 0;
+    var added = true;
+    while (added && mixed.length < limit) {
+      added = false;
+      for (final list in lists) {
+        if (round >= list.length) continue;
+        final song = list[round];
+        final titleKey = song.title.toLowerCase().trim();
+        if (seenIds.add(song.id) && seenTitles.add(titleKey)) {
+          mixed.add(song);
+          added = true;
+          if (mixed.length >= limit) break;
+        }
+      }
+      round++;
+    }
+
+    if (mixed.isNotEmpty) return mixed;
+
+    // Offline or the playlists are unreachable: fall back to search.
     final trendingList = await searchSongs('top hindi hits');
     if (trendingList.isNotEmpty) return trendingList;
     return searchSongs('trending');

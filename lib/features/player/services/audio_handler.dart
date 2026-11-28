@@ -84,7 +84,9 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
   int _shufflePointer = 0;
   AudioServiceRepeatMode _repeatMode = AudioServiceRepeatMode.none;
 
-  void _rebuildShuffleIndices() {
+  /// Fresh shuffle order for a brand new queue: the current song first, the
+  /// rest shuffled.
+  void _resetShuffleIndices() {
     if (_currentQueue.isEmpty) {
       _shuffledIndices = [];
       _shufflePointer = 0;
@@ -95,6 +97,32 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
     indices.shuffle();
     _shuffledIndices = [_currentIndex, ...indices];
     _shufflePointer = 0;
+  }
+
+  /// Keeps the songs that were already shuffled and only shuffles the ones
+  /// that were added since (queue topped up with similar songs). Without this,
+  /// every queue update reshuffled everything and replay songs the listener
+  /// had already heard.
+  void _extendShuffleIndices() {
+    if (_currentQueue.isEmpty || _shuffledIndices.isEmpty) {
+      _resetShuffleIndices();
+      return;
+    }
+    final kept = _shuffledIndices
+        .where((i) => i >= 0 && i < _currentQueue.length)
+        .toList();
+    final keptSet = kept.toSet();
+    final currentPosition = kept.indexOf(_currentIndex);
+    if (currentPosition < 0) {
+      _resetShuffleIndices();
+      return;
+    }
+    final fresh = <int>[
+      for (var i = 0; i < _currentQueue.length; i++)
+        if (!keptSet.contains(i)) i,
+    ]..shuffle();
+    if (_shufflePointer >= kept.length) _shufflePointer = currentPosition;
+    _shuffledIndices = [...kept, ...fresh];
   }
 
   int _loadGeneration = 0;
@@ -165,9 +193,13 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
   SongModel? get upcomingSong {
     if (_disposed || _currentQueue.isEmpty) return null;
     if (_isShuffle) {
-      if (_shuffledIndices.length != _currentQueue.length) return null;
       if (_shuffledIndices.length < 2) return null;
-      final nextIndex = _shuffledIndices[(_shufflePointer + 1) % _shuffledIndices.length];
+      var pointer = _shufflePointer + 1;
+      if (pointer >= _shuffledIndices.length) {
+        if (_repeatMode == AudioServiceRepeatMode.none) return null;
+        pointer = 0;
+      }
+      final nextIndex = _shuffledIndices[pointer];
       if (nextIndex < 0 || nextIndex >= _currentQueue.length) return null;
       return _currentQueue[nextIndex];
     }
@@ -336,7 +368,7 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
     _currentQueue = List.from(songs);
     _currentIndex = initialIndex.clamp(0, _currentQueue.length - 1);
     if (_isShuffle) {
-      _rebuildShuffleIndices();
+      _resetShuffleIndices();
     }
 
     // Silence any currently playing audio immediately before async resolution/loading
@@ -519,10 +551,15 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
   Future<void> skipToNext() async {
     if (_currentQueue.isEmpty || _disposed) return;
     if (_isShuffle) {
-      if (_shuffledIndices.length != _currentQueue.length) {
-        _rebuildShuffleIndices();
+      _extendShuffleIndices();
+      if (_shuffledIndices.length < 2) return;
+      if (_shufflePointer + 1 >= _shuffledIndices.length) {
+        // Every song has been played once: stop unless repeat is on.
+        if (_repeatMode == AudioServiceRepeatMode.none) return;
+        _shufflePointer = 0;
+      } else {
+        _shufflePointer++;
       }
-      _shufflePointer = (_shufflePointer + 1) % _shuffledIndices.length;
       final nextIndex = _shuffledIndices[_shufflePointer];
       await skipToQueueItem(nextIndex);
     } else if (hasNext) {
@@ -540,9 +577,7 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
       return;
     }
     if (_isShuffle) {
-      if (_shuffledIndices.length != _currentQueue.length) {
-        _rebuildShuffleIndices();
-      }
+      _extendShuffleIndices();
       _shufflePointer = (_shufflePointer - 1 + _shuffledIndices.length) % _shuffledIndices.length;
       final prevIndex = _shuffledIndices[_shufflePointer];
       await skipToQueueItem(prevIndex);
@@ -582,7 +617,7 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
   Future<void> setShuffleMode(AudioServiceShuffleMode shuffleMode) async {
     _isShuffle = shuffleMode == AudioServiceShuffleMode.all;
     if (_isShuffle) {
-      _rebuildShuffleIndices();
+      _resetShuffleIndices();
     }
     playbackState.add(playbackState.value.copyWith(shuffleMode: shuffleMode));
   }
@@ -630,7 +665,7 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
       _currentIndex = newIndex.clamp(0, _currentQueue.isNotEmpty ? _currentQueue.length - 1 : 0);
     }
     if (_isShuffle) {
-      _rebuildShuffleIndices();
+      _extendShuffleIndices();
     }
     final mediaItems = _currentQueue.map(_toMediaItem).toList();
     queue.add(mediaItems);

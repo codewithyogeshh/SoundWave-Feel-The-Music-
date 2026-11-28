@@ -366,9 +366,10 @@ class PlayerNotifier extends Notifier<PlayerState> {
     _beginTrackConfirmation(trackToPlay);
     await _handler.loadQueue(effectiveQueue, initialIndex: initialIndex);
 
-    // The old copies were removed, so add songs of the same vibe to keep the
-    // music going instead of ending after two tracks.
-    if (removedRepeats > 0) {
+    // Either the old copies were removed or the list was short: add songs of
+    // the same vibe so "next" keeps playing good, related music instead of
+    // ending after a couple of tracks.
+    if (removedRepeats > 0 || effectiveQueue.length < 12) {
       unawaited(_topUpQueueWithSimilar(trackToPlay, requestId));
     }
   }

@@ -17,6 +17,11 @@ class SearchState {
   final List<SongModel> trendingOnline;
   final List<String> recentSearches;
   final List<String> suggestions;
+  final List<String> onlineSuggestions;
+  final bool hasMoreOnline;
+  final bool isLoadingMore;
+  final int onlinePage;
+  final int onlineTotal;
 
   const SearchState({
     this.query = '',
@@ -27,7 +32,19 @@ class SearchState {
     this.trendingOnline = const [],
     this.recentSearches = const [],
     this.suggestions = const [],
+    this.onlineSuggestions = const [],
+    this.hasMoreOnline = false,
+    this.isLoadingMore = false,
+    this.onlinePage = 1,
+    this.onlineTotal = 0,
   });
+
+  /// Every song the current search found so far, online results first, ready
+  /// to be played or reordered as one long playlist.
+  List<SongModel> get allOnlineAndLocal => [
+        ...onlineResults,
+        ...results.where((local) => !onlineResults.any((o) => o.id == local.id)),
+      ];
 
   SearchState copyWith({
     String? query,
@@ -38,6 +55,11 @@ class SearchState {
     List<SongModel>? trendingOnline,
     List<String>? recentSearches,
     List<String>? suggestions,
+    List<String>? onlineSuggestions,
+    bool? hasMoreOnline,
+    bool? isLoadingMore,
+    int? onlinePage,
+    int? onlineTotal,
   }) {
     return SearchState(
       query: query ?? this.query,
@@ -48,6 +70,11 @@ class SearchState {
       trendingOnline: trendingOnline ?? this.trendingOnline,
       recentSearches: recentSearches ?? this.recentSearches,
       suggestions: suggestions ?? this.suggestions,
+      onlineSuggestions: onlineSuggestions ?? this.onlineSuggestions,
+      hasMoreOnline: hasMoreOnline ?? this.hasMoreOnline,
+      isLoadingMore: isLoadingMore ?? this.isLoadingMore,
+      onlinePage: onlinePage ?? this.onlinePage,
+      onlineTotal: onlineTotal ?? this.onlineTotal,
     );
   }
 }
@@ -100,11 +127,33 @@ class SearchNotifier extends Notifier<SearchState> {
     _debounceTimer?.cancel();
     final trimmed = query.trim();
     if (trimmed.length >= 2) {
-      _debounceTimer = Timer(const Duration(milliseconds: 400), () {
+      _debounceTimer = Timer(const Duration(milliseconds: 350), () {
         _performOnlineSearch(trimmed);
+        _loadSuggestions(trimmed);
       });
     } else {
-      state = state.copyWith(onlineResults: [], isSearchingOnline: false);
+      state = state.copyWith(
+        onlineResults: [],
+        isSearchingOnline: false,
+        onlineSuggestions: [],
+        hasMoreOnline: false,
+        isLoadingMore: false,
+        onlinePage: 1,
+        onlineTotal: 0,
+      );
+    }
+  }
+
+  /// Live typing suggestions so search feels like YouTube Music: a short list
+  /// of real songs/artists appears while the user is still typing.
+  Future<void> _loadSuggestions(String query) async {
+    try {
+      final suggestions = await OnlineMusicService.searchSuggestions(query);
+      if (_isDisposed) return;
+      if (state.query.trim() != query.trim()) return;
+      state = state.copyWith(onlineSuggestions: suggestions);
+    } catch (e) {
+      debugPrint('Suggestion error: $e');
     }
   }
 
@@ -161,20 +210,63 @@ class SearchNotifier extends Notifier<SearchState> {
 
   Future<void> _performOnlineSearch(String query) async {
     if (_isDisposed) return;
-    state = state.copyWith(isSearchingOnline: true);
+    state = state.copyWith(isSearchingOnline: true, isLoadingMore: false);
     try {
-      final onlineSongs = await OnlineMusicService.searchSongs(query);
+      final page = await OnlineMusicService.searchPage(query);
       if (_isDisposed) return;
       if (state.query.trim() == query.trim()) {
         state = state.copyWith(
-          onlineResults: onlineSongs,
+          onlineResults: page.songs,
           isSearchingOnline: false,
+          hasMoreOnline: page.hasMore,
+          onlinePage: 1,
+          onlineTotal: page.total,
         );
       }
     } catch (e) {
       debugPrint('Online search error: $e');
       if (!_isDisposed) {
         state = state.copyWith(isSearchingOnline: false);
+      }
+    }
+  }
+
+  /// Loads the next page of search results for the current query. Called by
+  /// the search screen when the list is scrolled near the bottom, so results
+  /// never stop at one short page.
+  Future<void> loadMoreResults() async {
+    if (_isDisposed || state.isLoadingMore || !state.hasMoreOnline) return;
+    final query = state.query.trim();
+    if (query.isEmpty) return;
+
+    final nextPage = state.onlinePage + 1;
+    state = state.copyWith(isLoadingMore: true);
+    try {
+      final page = await OnlineMusicService.searchPage(query, page: nextPage);
+      if (_isDisposed) return;
+      if (state.query.trim() != query) return;
+
+      final existingIds = state.onlineResults.map((s) => s.id).toSet();
+      final existingTitles = state.onlineResults
+          .map((s) => '${s.title.toLowerCase()}|${s.artist.toLowerCase()}')
+          .toSet();
+      final fresh = page.songs.where((song) {
+        if (existingIds.contains(song.id)) return false;
+        final key = '${song.title.toLowerCase()}|${song.artist.toLowerCase()}';
+        return existingTitles.add(key);
+      }).toList();
+
+      state = state.copyWith(
+        onlineResults: [...state.onlineResults, ...fresh],
+        hasMoreOnline: page.hasMore && fresh.isNotEmpty,
+        isLoadingMore: false,
+        onlinePage: nextPage,
+        onlineTotal: page.total > 0 ? page.total : state.onlineTotal,
+      );
+    } catch (e) {
+      debugPrint('Load more search error: $e');
+      if (!_isDisposed) {
+        state = state.copyWith(isLoadingMore: false, hasMoreOnline: false);
       }
     }
   }
@@ -187,7 +279,7 @@ class SearchNotifier extends Notifier<SearchState> {
       recentSearches: _storage.getRecentSearches(),
     );
     _performLocalSearch(trimmed);
-    _performOnlineSearch(trimmed);
+    await _performOnlineSearch(trimmed);
   }
 
   Future<void> clearHistory() async {

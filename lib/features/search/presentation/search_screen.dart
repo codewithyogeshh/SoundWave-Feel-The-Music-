@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -26,12 +28,92 @@ class SearchScreen extends ConsumerStatefulWidget {
 class _SearchScreenState extends ConsumerState<SearchScreen> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
+  final ScrollController _resultsScroll = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _resultsScroll.addListener(_onResultsScroll);
+  }
+
+  /// Loads the next page of results before the user reaches the bottom, so the
+  /// list keeps scrolling instead of ending after one short page.
+  void _onResultsScroll() {
+    if (!_resultsScroll.hasClients) return;
+    final position = _resultsScroll.position;
+    if (position.pixels >= position.maxScrollExtent - 600) {
+      ref.read(searchProvider.notifier).loadMoreResults();
+    }
+  }
 
   @override
   void dispose() {
+    _resultsScroll.removeListener(_onResultsScroll);
+    _resultsScroll.dispose();
     _searchController.dispose();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  /// Plays a whole list as the queue. With [shuffle] a random song starts and
+  /// shuffle is switched on, like YouTube Music's Shuffle play button.
+  void _playAll(List<SongModel> songs, {bool shuffle = false}) {
+    if (songs.isEmpty) return;
+    HapticFeedback.mediumImpact();
+    final player = ref.read(playerProvider.notifier);
+    final startIndex = shuffle ? Random().nextInt(songs.length) : 0;
+    player.playTrack(songs[startIndex], queue: songs);
+    if (shuffle && !ref.read(playerProvider).isShuffle) {
+      player.toggleShuffle();
+    }
+  }
+
+  Widget _buildPlayAllButton(
+    String label,
+    IconData icon,
+    VoidCallback onTap,
+    AppThemeType activeTheme, {
+    bool filled = false,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          gradient: filled ? activeTheme.accentGradient : null,
+          color: filled ? null : AppColors.glassWhiteMedium,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: filled
+                ? activeTheme.highlightColor.withValues(alpha: 0.6)
+                : AppColors.glassBorderSubtle,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 15,
+              color: filled
+                  ? activeTheme.onAccentGradient
+                  : activeTheme.primaryAccent,
+            ),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: TextStyle(
+                color: filled
+                    ? activeTheme.onAccentGradient
+                    : AppColors.textSecondary,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -172,6 +254,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                       child: TextField(
                         controller: _searchController,
                         focusNode: _focusNode,
+                        textInputAction: TextInputAction.search,
                         style: const TextStyle(color: Colors.white, fontSize: 15),
                         cursorColor: activeTheme.primaryAccent,
                         decoration: InputDecoration(
@@ -282,6 +365,68 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               ),
             ),
 
+            // Live typing suggestions (songs, artists, playlists)
+            if (searchState.query.trim().isNotEmpty &&
+                searchState.onlineSuggestions.isNotEmpty)
+              SizedBox(
+                height: 36,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+                  itemCount: searchState.onlineSuggestions.take(6).length,
+                  itemBuilder: (context, index) {
+                    final suggestion = searchState.onlineSuggestions[index];
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: GestureDetector(
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          _searchController.text = suggestion;
+                          searchNotifier.submitSearch(suggestion);
+                          _focusNode.unfocus();
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.glassWhiteMedium,
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(color: AppColors.glassBorderSubtle),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.search_rounded,
+                                size: 14,
+                                color: activeTheme.primaryAccent,
+                              ),
+                              const SizedBox(width: 5),
+                              ConstrainedBox(
+                                constraints: const BoxConstraints(maxWidth: 220),
+                                child: Text(
+                                  suggestion,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: AppColors.textSecondary,
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+
             // Main Content: Live Results OR Trending/Recent
             Expanded(
               child: _searchController.text.trim().isEmpty
@@ -320,7 +465,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                       Icon(Icons.whatshot_rounded, color: activeTheme.highlightColor, size: 20),
                       const SizedBox(width: 6),
                       Text(
-                        'Trending Online',
+                        'Trending on Instagram',
                         style: AppTextStyles.sectionTitle.copyWith(
                         fontSize: 16.5,
                         fontWeight: FontWeight.w800,
@@ -329,13 +474,23 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                       ),
                     ],
                   ),
-                  Text(
-                    '320 kbps',
-                    style: TextStyle(
-                      color: activeTheme.primaryAccent,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  Row(
+                    children: [
+                      _buildPlayAllButton(
+                        'Play all',
+                        Icons.play_arrow_rounded,
+                        () => _playAll(state.trendingOnline),
+                        activeTheme,
+                        filled: true,
+                      ),
+                      const SizedBox(width: 6),
+                      _buildPlayAllButton(
+                        'Shuffle',
+                        Icons.shuffle_rounded,
+                        () => _playAll(state.trendingOnline, shuffle: true),
+                        activeTheme,
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -343,7 +498,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               ListView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                itemCount: state.trendingOnline.length.clamp(0, 5),
+                itemCount: state.trendingOnline.length.clamp(0, 12),
                 itemBuilder: (context, index) {
                   final song = state.trendingOnline[index];
                   return _buildSearchResultTile(song, state.trendingOnline, activeTheme);
@@ -503,12 +658,96 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       );
     }
 
+    final loadedLabel = state.onlineTotal > combinedSongs.length
+        ? '${state.onlineTotal} songs'
+        : '${combinedSongs.length} songs';
+
     return ListView.builder(
+      controller: _resultsScroll,
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.only(left: 20, right: 20, top: 10, bottom: 175),
-      itemCount: combinedSongs.length,
+      padding: const EdgeInsets.only(left: 20, right: 20, top: 6, bottom: 175),
+      itemCount: combinedSongs.length + 2,
       itemBuilder: (context, index) {
-        final song = combinedSongs[index];
+        if (index == 0) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8, top: 4),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Top results',
+                        style: AppTextStyles.sectionTitle.copyWith(
+                          fontSize: 16.5,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                      Text(
+                        loadedLabel,
+                        style: AppTextStyles.subtitle.copyWith(
+                          fontSize: 11.5,
+                          color: activeTheme.highlightColor.withValues(alpha: 0.9),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                _buildPlayAllButton(
+                  'Play all',
+                  Icons.play_arrow_rounded,
+                  () => _playAll(combinedSongs),
+                  activeTheme,
+                  filled: true,
+                ),
+                const SizedBox(width: 6),
+                _buildPlayAllButton(
+                  'Shuffle',
+                  Icons.shuffle_rounded,
+                  () => _playAll(combinedSongs, shuffle: true),
+                  activeTheme,
+                ),
+              ],
+            ),
+          );
+        }
+
+        if (index == combinedSongs.length + 1) {
+          if (state.isLoadingMore) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 18),
+              child: Center(
+                child: SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.2,
+                    color: activeTheme.primaryAccent,
+                  ),
+                ),
+              ),
+            );
+          }
+          if (state.hasMoreOnline) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              child: Center(
+                child: _buildPlayAllButton(
+                  'Load more songs',
+                  Icons.expand_more_rounded,
+                  () => ref.read(searchProvider.notifier).loadMoreResults(),
+                  activeTheme,
+                ),
+              ),
+            );
+          }
+          return const SizedBox(height: 12);
+        }
+
+        final song = combinedSongs[index - 1];
         return _buildSearchResultTile(song, combinedSongs, activeTheme);
       },
     );
