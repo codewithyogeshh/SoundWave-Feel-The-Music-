@@ -122,7 +122,6 @@ class _LyricsViewerState extends ConsumerState<LyricsViewer> {
 
   @override
   Widget build(BuildContext context) {
-    final activeTheme = ref.watch(themeProvider);
     final lyricsAsync = ref.watch(currentSongLyricsProvider);
     final fromCache = ref.watch(lyricsFromCacheProvider);
     final playerState = ref.watch(playerProvider);
@@ -235,33 +234,12 @@ class _LyricsViewerState extends ConsumerState<LyricsViewer> {
     return Container(
       height: widget.height,
       decoration: BoxDecoration(
-        color: activeTheme.secondaryBackground.withValues(alpha: 0.72),
-        borderRadius: BorderRadius.circular(28),
-        // Same lifted, colour-washed card as the mini player and Now Playing.
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            activeTheme.primaryAccent.withValues(alpha: 0.30),
-            activeTheme.highlightColor.withValues(alpha: 0.16),
-          ],
-        ),
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: activeTheme.highlightColor.withValues(alpha: 0.38),
-          width: 1.2,
+          color: Colors.white.withValues(alpha: 0.10),
+          width: 1,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: activeTheme.primaryAccent.withValues(alpha: 0.26),
-            blurRadius: 26,
-            offset: const Offset(0, 12),
-          ),
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.24),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
-          ),
-        ],
       ),
       child: Column(
         children: [
@@ -271,22 +249,16 @@ class _LyricsViewerState extends ConsumerState<LyricsViewer> {
             child: Row(
               children: [
                 Container(
-                  width: 30,
-                  height: 30,
+                  width: 28,
+                  height: 28,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    gradient: activeTheme.accentGradient,
-                    boxShadow: [
-                      BoxShadow(
-                        color: activeTheme.primaryAccent.withValues(alpha: 0.5),
-                        blurRadius: 12,
-                      ),
-                    ],
+                    color: Colors.white.withValues(alpha: 0.12),
                   ),
                   child: Icon(
                     Icons.mic_external_on_rounded,
-                    color: activeTheme.onAccentGradient,
-                    size: 17,
+                    color: Colors.white.withValues(alpha: 0.8),
+                    size: 16,
                   ),
                 ),
                 const SizedBox(width: 9),
@@ -315,7 +287,7 @@ class _LyricsViewerState extends ConsumerState<LyricsViewer> {
                               vertical: 2,
                             ),
                             decoration: BoxDecoration(
-                              color: activeTheme.primaryAccent.withValues(alpha: 0.16),
+                              color: Colors.white.withValues(alpha: 0.10),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Row(
@@ -324,13 +296,13 @@ class _LyricsViewerState extends ConsumerState<LyricsViewer> {
                                 Icon(
                                   Icons.offline_pin_rounded,
                                   size: 10,
-                                  color: activeTheme.primaryAccent,
+                                  color: Colors.white.withValues(alpha: 0.7),
                                 ),
                                 const SizedBox(width: 2),
                                 Text(
                                   'SAVED',
                                   style: TextStyle(
-                                    color: activeTheme.primaryAccent,
+                                    color: Colors.white.withValues(alpha: 0.7),
                                     fontSize: 8,
                                     fontWeight: FontWeight.w800,
                                     letterSpacing: 0.4,
@@ -378,15 +350,10 @@ class _LyricsViewerState extends ConsumerState<LyricsViewer> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            activeTheme.primaryAccent.withValues(alpha: 0.34),
-                            activeTheme.highlightColor.withValues(alpha: 0.22),
-                          ],
-                        ),
+                        color: Colors.white.withValues(alpha: 0.10),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color: activeTheme.highlightColor.withValues(alpha: 0.55),
+                          color: Colors.white.withValues(alpha: 0.16),
                           width: 1,
                         ),
                       ),
@@ -418,15 +385,7 @@ class _LyricsViewerState extends ConsumerState<LyricsViewer> {
           Container(
             height: 1,
             margin: const EdgeInsets.symmetric(horizontal: 10),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Colors.transparent,
-                  activeTheme.highlightColor.withValues(alpha: 0.45),
-                  Colors.transparent,
-                ],
-              ),
-            ),
+            color: Colors.white.withValues(alpha: 0.08),
           ),
           Expanded(child: body),
         ],
