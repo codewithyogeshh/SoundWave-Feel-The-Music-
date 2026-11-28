@@ -22,6 +22,7 @@ class LibraryStorageService {
   static const String _keyFavorites = 'sw_favorites';
   static const String _keyRecentlyPlayed = 'sw_recently_played';
   static const String _keyRecentlyPlayedSongs = 'sw_recently_played_songs';
+  static const String _keyRecentlyPlayedTimes = 'sw_recently_played_at';
   static const String _keyRecentSearches = 'sw_recent_searches';
   static const String _keyTotalSongsPlayed = 'sw_stats_songs_played';
   static const String _keyUserProfile = 'sw_user_profile';
@@ -244,13 +245,41 @@ class LibraryStorageService {
       _keyRecentlyPlayedSongs,
       trimmed.map((s) => s.toJson()).toList(),
     );
+    // Remember when each track was played so the list can be grouped by day.
+    final times = getRecentlyPlayedTimes();
+    final keptIds = trimmed.map((s) => s.id).toSet();
+    times.removeWhere((id, _) => !keptIds.contains(id));
+    times[song.id] = DateTime.now().millisecondsSinceEpoch;
+    await _saveRecentlyPlayedTimes(times);
     // Keeps the id list and play-count stats in step with the history.
     await addRecentlyPlayed(song.id);
+  }
+
+  /// Last played time (epoch millis) for every remembered song id.
+  Map<String, int> getRecentlyPlayedTimes() {
+    final raw = _prefs.getString(_keyRecentlyPlayedTimes);
+    if (raw == null || raw.isEmpty) return <String, int>{};
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return <String, int>{};
+      final result = <String, int>{};
+      decoded.forEach((key, value) {
+        if (key is String && value is int) result[key] = value;
+      });
+      return result;
+    } catch (_) {
+      return <String, int>{};
+    }
+  }
+
+  Future<void> _saveRecentlyPlayedTimes(Map<String, int> times) async {
+    await _prefs.setString(_keyRecentlyPlayedTimes, jsonEncode(times));
   }
 
   Future<void> clearRecentlyPlayedSongs() async {
     await _prefs.remove(_keyRecentlyPlayedSongs);
     await _prefs.remove(_keyRecentlyPlayed);
+    await _prefs.remove(_keyRecentlyPlayedTimes);
   }
 
   // --- RECENT SEARCHES ---

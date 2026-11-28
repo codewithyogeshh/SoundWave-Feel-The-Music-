@@ -19,6 +19,9 @@ class LibraryState {
   final Set<String> favoriteIds;
   final List<String> recentlyPlayedIds;
   final List<SongModel> recentlyPlayedSongs;
+
+  /// When each song was last played (epoch millis), used for day sections.
+  final Map<String, int> recentlyPlayedTimes;
   final bool isScanning;
   final String? scanError;
 
@@ -30,6 +33,7 @@ class LibraryState {
     this.favoriteIds = const {},
     this.recentlyPlayedIds = const [],
     this.recentlyPlayedSongs = const [],
+    this.recentlyPlayedTimes = const {},
     this.isScanning = false,
     this.scanError,
   });
@@ -49,6 +53,7 @@ class LibraryState {
     Set<String>? favoriteIds,
     List<String>? recentlyPlayedIds,
     List<SongModel>? recentlyPlayedSongs,
+    Map<String, int>? recentlyPlayedTimes,
     bool? isScanning,
     String? scanError,
   }) {
@@ -60,6 +65,7 @@ class LibraryState {
       favoriteIds: favoriteIds ?? this.favoriteIds,
       recentlyPlayedIds: recentlyPlayedIds ?? this.recentlyPlayedIds,
       recentlyPlayedSongs: recentlyPlayedSongs ?? this.recentlyPlayedSongs,
+      recentlyPlayedTimes: recentlyPlayedTimes ?? this.recentlyPlayedTimes,
       isScanning: isScanning ?? this.isScanning,
       scanError: scanError,
     );
@@ -134,6 +140,7 @@ class LibraryNotifier extends Notifier<LibraryState> {
       favoriteIds: _storage.getFavoriteIds(),
       recentlyPlayedIds: _storage.getRecentlyPlayedIds(),
       recentlyPlayedSongs: _storage.getRecentlyPlayedSongs(),
+      recentlyPlayedTimes: _storage.getRecentlyPlayedTimes(),
     );
   }
 
@@ -277,6 +284,7 @@ class LibraryNotifier extends Notifier<LibraryState> {
     state = state.copyWith(
       recentlyPlayedIds: _storage.getRecentlyPlayedIds(),
       recentlyPlayedSongs: _storage.getRecentlyPlayedSongs(),
+      recentlyPlayedTimes: _storage.getRecentlyPlayedTimes(),
     );
   }
 
@@ -287,6 +295,7 @@ class LibraryNotifier extends Notifier<LibraryState> {
     state = state.copyWith(
       recentlyPlayedIds: const [],
       recentlyPlayedSongs: const [],
+      recentlyPlayedTimes: const {},
     );
   }
 

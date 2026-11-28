@@ -17,11 +17,16 @@ class SongTrackTile extends ConsumerWidget {
   final List<SongModel> playlist;
   final VoidCallback? onMoreOptions;
 
+  /// Small label on the right of the row, e.g. when a history track was
+  /// last played. Hidden when null or empty.
+  final String? trailingLabel;
+
   const SongTrackTile({
     super.key,
     required this.song,
     required this.playlist,
     this.onMoreOptions,
+    this.trailingLabel,
   });
 
   @override
@@ -150,6 +155,19 @@ class SongTrackTile extends ConsumerWidget {
               ),
             ),
             const SizedBox(width: 6),
+
+            // Right: Optional label such as the last played time
+            if (trailingLabel != null && trailingLabel!.isNotEmpty) ...[
+              Text(
+                trailingLabel!,
+                style: const TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textMuted,
+                ),
+              ),
+              const SizedBox(width: 2),
+            ],
 
             // Right: Playing Equalizer Indicator
             if (isPlaying) ...[

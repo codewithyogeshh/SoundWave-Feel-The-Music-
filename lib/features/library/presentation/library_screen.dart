@@ -13,6 +13,7 @@ import 'package:soundwave/core/widgets/song_track_tile.dart';
 import 'package:soundwave/features/library/models/playlist_model.dart';
 import 'package:soundwave/features/library/models/song_filter_state.dart';
 import 'package:soundwave/features/library/presentation/playlist_detail_screen.dart';
+import 'package:soundwave/features/library/utils/history_grouping.dart';
 import 'package:soundwave/features/library/widgets/song_filter_bar.dart';
 import 'package:soundwave/features/online/presentation/downloads_screen.dart';
 import 'package:soundwave/features/player/models/song_model.dart';
@@ -193,7 +194,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                   _buildPlaylistsTab(libState.playlists),
                   _buildSongsTab(libState.allSongs, libState.favoriteIds, libState.recentlyPlayedIds),
                   _buildFavoritesTab(libState.favoriteSongs, libState.favoriteIds, libState.recentlyPlayedIds),
-                  _buildRecentlyPlayedTab(libState.recentlyPlayedSongs, libState.favoriteIds, libState.recentlyPlayedIds, activeTheme),
+                  _buildRecentlyPlayedTab(libState.recentlyPlayedSongs, libState.favoriteIds, libState.recentlyPlayedIds, activeTheme, libState.recentlyPlayedTimes),
                   _buildDeviceAudioTab(libState),
                 ],
               ),
@@ -513,6 +514,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     Set<String> favoriteIds,
     List<String> recentlyPlayedIds,
     AppThemeType activeTheme,
+    Map<String, int> playedTimes,
   ) {
     if (recent.isEmpty) {
       return const EmptyStateWidget(
@@ -562,20 +564,67 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           )
         else
           SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) {
-                final song = filteredRecent[index];
-                return SongTrackTile(
-                  key: ValueKey('recent_${song.id}'),
-                  song: song,
-                  playlist: filteredRecent,
-                );
-              },
-              childCount: filteredRecent.length,
+            delegate: SliverChildListDelegate(
+              _buildHistoryRows(filteredRecent, playedTimes),
             ),
           ),
         const SliverToBoxAdapter(child: SizedBox(height: 175)),
       ],
+    );
+  }
+
+  /// Rows for the history list: a Today / Yesterday / Earlier header followed
+  /// by its tracks, each tagged with the time it was played.
+  List<Widget> _buildHistoryRows(
+    List<SongModel> songs,
+    Map<String, int> playedTimes,
+  ) {
+    final rows = <Widget>[];
+    for (final section in groupHistorySongs(songs, playedTimes)) {
+      rows.add(_buildHistorySectionHeader(section));
+      for (final song in section.songs) {
+        rows.add(
+          SongTrackTile(
+            key: ValueKey('recent_${song.id}'),
+            song: song,
+            playlist: songs,
+            trailingLabel: formatPlayedTime(playedTimes[song.id]),
+          ),
+        );
+      }
+    }
+    return rows;
+  }
+
+  Widget _buildHistorySectionHeader(HistorySection section) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 14, 22, 6),
+      child: Row(
+        children: [
+          Text(
+            section.bucket.label,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.4,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Container(height: 1, color: AppColors.glassBorderSubtle),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '${section.songs.length}',
+            style: const TextStyle(
+              color: AppColors.textMuted,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -614,7 +663,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        '${recent.length} tracks saved • newest first',
+                        '${recent.length} tracks saved • grouped by day',
                         style: AppTextStyles.artistName.copyWith(
                           fontSize: 11.5,
                           color: AppColors.textMuted,
