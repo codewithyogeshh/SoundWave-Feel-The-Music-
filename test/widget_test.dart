@@ -619,7 +619,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
 
       expect(find.text('Profile & Settings'), findsOneWidget);
-      expect(find.text('Tracks Played'), findsOneWidget);
+      expect(find.text('Listening Statistics'), findsOneWidget);
     });
 
     testWidgets('Home displays Trending Online Hits when online songs load', (WidgetTester tester) async {

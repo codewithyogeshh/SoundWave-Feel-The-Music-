@@ -60,7 +60,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SafeArea(
-        child: SingleChildScrollView(
+        child: Stack(
+          children: [
+            _ProfileAmbientGlow(theme: currentTheme),
+            SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
           padding: const EdgeInsets.only(left: 20, right: 20, top: 16, bottom: 175),
           child: Column(
@@ -119,6 +122,58 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           ),
                         ),
                       ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  GestureDetector(
+                    onTap: () => _showEditProfileDialog(
+                      context,
+                      storage,
+                      profile,
+                      username,
+                      tagline,
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 9,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.glassWhite,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: currentTheme.highlightColor.withValues(
+                            alpha: 0.45,
+                          ),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: currentTheme.primaryAccent.withValues(
+                              alpha: 0.32,
+                            ),
+                            blurRadius: 14,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.edit_rounded,
+                            size: 14,
+                            color: currentTheme.highlightColor,
+                          ),
+                          const SizedBox(width: 6),
+                          const Text(
+                            'Edit',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
@@ -274,76 +329,54 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               // Listening Stats Section
               _sectionTitle(Icons.insights_rounded, 'Listening Statistics'),
               const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildStatCard(
+              _buildStatsStrip(
+                activeTheme: currentTheme,
+                stats: [
+                  _ProfileStat(
+                    label: 'Played',
+                    value: '$totalPlayed',
+                    icon: Icons.play_circle_fill_rounded,
+                    onTap: () => _showSongListSheet(
+                      context,
+                      title: 'Recently Played Tracks',
                       icon: Icons.play_circle_fill_rounded,
-                      value: '$totalPlayed',
-                      label: 'Tracks Played',
-                      gradient: currentTheme.primaryGradient,
-                      onTap: () => _showSongListSheet(
-                        context,
-                        title: 'Recently Played Tracks',
-                        icon: Icons.play_circle_fill_rounded,
-                        songs: libState.recentlyPlayedSongs,
-                        theme: currentTheme,
-                      ),
+                      songs: libState.recentlyPlayedSongs,
+                      theme: currentTheme,
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildStatCard(
+                  _ProfileStat(
+                    label: 'Favorites',
+                    value: '${libState.favoriteIds.length}',
+                    icon: Icons.favorite_rounded,
+                    onTap: () => _showSongListSheet(
+                      context,
+                      title: 'Favorite & Liked Songs',
                       icon: Icons.favorite_rounded,
-                      value: '${libState.favoriteIds.length}',
-                      label: 'Favorites',
-                      gradient: currentTheme.accentGradient,
-                      onTap: () => _showSongListSheet(
-                        context,
-                        title: 'Favorite & Liked Songs',
-                        icon: Icons.favorite_rounded,
-                        songs: libState.favoriteSongs,
-                        theme: currentTheme,
-                      ),
+                      songs: libState.favoriteSongs,
+                      theme: currentTheme,
                     ),
+                  ),
+                  _ProfileStat(
+                    label: 'Offline',
+                    value: '${libState.allSongs.length}',
+                    icon: Icons.library_books_rounded,
+                    onTap: () => _showSongListSheet(
+                      context,
+                      title: 'Downloaded & Offline Songs',
+                      icon: Icons.library_books_rounded,
+                      songs: libState.allSongs,
+                      theme: currentTheme,
+                    ),
+                  ),
+                  _ProfileStat(
+                    label: 'Playlists',
+                    value: '${libState.playlists.length}',
+                    icon: Icons.queue_music_rounded,
+                    onTap: () =>
+                        _showPlaylistsSheet(context, libState, currentTheme),
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildStatCard(
-                      icon: Icons.library_music_rounded,
-                      value: '${libState.allSongs.length}',
-                      label: 'Offline Songs',
-                      gradient: currentTheme.primaryGradient,
-                      onTap: () => _showSongListSheet(
-                        context,
-                        title: 'Downloaded & Offline Songs',
-                        icon: Icons.library_music_rounded,
-                        songs: libState.allSongs,
-                        theme: currentTheme,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildStatCard(
-                      icon: Icons.queue_music_rounded,
-                      value: '${libState.playlists.length}',
-                      label: 'Playlists',
-                      gradient: currentTheme.accentGradient,
-                      onTap: () => _showPlaylistsSheet(
-                        context,
-                        libState,
-                        currentTheme,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-
               const SizedBox(height: 12),
               Row(
                 children: [
@@ -722,7 +755,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 onTap: () => _showPrivacyDialog(context),
               ),
             ],
-          ),
+                  ),
+                ),
+          ],
         ),
       ),
     );
@@ -777,6 +812,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         Expanded(
           child: Text(
             title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: AppTextStyles.sectionTitle.copyWith(
               fontSize: 17,
               fontWeight: FontWeight.w800,
@@ -784,7 +821,108 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ),
           ),
         ),
+        const SizedBox(width: 10),
+        Container(
+          width: 34,
+          height: 2,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(2),
+            gradient: LinearGradient(
+              colors: [
+                theme.highlightColor.withValues(alpha: 0.75),
+                theme.primaryAccent.withValues(alpha: 0.0),
+              ],
+            ),
+          ),
+        ),
       ],
+    );
+  }
+
+  /// Library-style single-panel stat strip: four live counts with dividers.
+  Widget _buildStatsStrip({
+    required AppThemeType activeTheme,
+    required List<_ProfileStat> stats,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            activeTheme.primaryAccent.withValues(alpha: 0.22),
+            AppColors.glassWhite.withValues(alpha: 0.04),
+          ],
+        ),
+        border: Border.all(
+          color: activeTheme.highlightColor.withValues(alpha: 0.26),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: activeTheme.primaryAccent.withValues(alpha: 0.18),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          for (var i = 0; i < stats.length; i++) ...[
+            if (i > 0)
+              Container(
+                width: 1,
+                height: 30,
+                color: AppColors.glassBorderSubtle,
+              ),
+            Expanded(
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: stats[i].onTap,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        stats[i].icon,
+                        size: 16,
+                        color: activeTheme.highlightColor,
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        stats[i].value,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                          height: 1,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        stats[i].label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
@@ -1827,4 +1965,75 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       taglineController.dispose();
     });
   }
+}
+
+/// Soft accent glow behind the profile header, matching the home and library
+/// screens so all three tabs share the same premium lighting.
+class _ProfileAmbientGlow extends StatelessWidget {
+  const _ProfileAmbientGlow({required this.theme});
+
+  final AppThemeType theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: Stack(
+          children: [
+            Positioned(
+              top: -80,
+              right: -60,
+              width: 260,
+              height: 260,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      theme.primaryAccent.withValues(alpha: 0.28),
+                      theme.highlightColor.withValues(alpha: 0.10),
+                      Colors.transparent,
+                    ],
+                    stops: const [0.0, 0.55, 1.0],
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 150,
+              left: -100,
+              width: 230,
+              height: 230,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      theme.secondaryAccent.withValues(alpha: 0.18),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// One live count inside the profile stats strip.
+class _ProfileStat {
+  final String label;
+  final String value;
+  final IconData icon;
+  final VoidCallback? onTap;
+
+  const _ProfileStat({
+    required this.label,
+    required this.value,
+    required this.icon,
+    this.onTap,
+  });
 }
