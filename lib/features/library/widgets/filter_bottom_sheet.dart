@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:soundwave/app/theme/app_colors.dart';
 import 'package:soundwave/app/theme/text_styles.dart';
+import 'package:soundwave/app/theme/theme_model.dart';
 import 'package:soundwave/core/widgets/gradient_button.dart';
+import 'package:soundwave/core/widgets/premium_sheet.dart';
 import 'package:soundwave/features/library/models/song_filter_state.dart';
 import 'package:soundwave/features/player/models/song_model.dart';
+import 'package:soundwave/shared/providers/theme_provider.dart';
 
-class FilterBottomSheet extends StatefulWidget {
+class FilterBottomSheet extends ConsumerStatefulWidget {
   final SongFilterState currentState;
   final List<SongModel> songs;
 
@@ -32,10 +36,10 @@ class FilterBottomSheet extends StatefulWidget {
   }
 
   @override
-  State<FilterBottomSheet> createState() => _FilterBottomSheetState();
+  ConsumerState<FilterBottomSheet> createState() => _FilterBottomSheetState();
 }
 
-class _FilterBottomSheetState extends State<FilterBottomSheet> {
+class _FilterBottomSheetState extends ConsumerState<FilterBottomSheet> {
   late SongFilterState _state;
   late List<String> _artists;
   late List<String> _albums;
@@ -52,75 +56,49 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final activeTheme = ref.watch(themeProvider);
     return Container(
-      decoration: BoxDecoration(
-        color: scheme.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        border: Border.all(
-          color: AppColors.glassBorder.withValues(alpha: 0.35),
-          width: 1,
-        ),
-      ),
+      decoration: premiumSheetDecoration(activeTheme, radius: 28),
       constraints: BoxConstraints(
         maxHeight: MediaQuery.of(context).size.height * 0.85,
       ),
-      padding: const EdgeInsets.only(top: 20, bottom: 24),
+      padding: const EdgeInsets.only(bottom: 18),
       child: SafeArea(
         top: false,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Handle Bar
-            Center(
-              child: Container(
-                width: 44,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
+            PremiumSheetHandle(theme: activeTheme),
 
             // Header Row: Title & Reset Button
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.tune_rounded, color: scheme.tertiary, size: 22),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Filter Tracks',
-                        style: AppTextStyles.cardTitle.copyWith(fontSize: 18),
-                      ),
-                    ],
-                  ),
-                  if (_state.hasActiveFilters)
-                    GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _state = _state.reset();
-                        });
-                      },
-                      child: Text(
-                        'Reset All',
-                        style: AppTextStyles.actionLink.copyWith(
-                          color: scheme.tertiary,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                ],
+              child: PremiumSheetHeader(
+                theme: activeTheme,
+                icon: Icons.tune_rounded,
+                title: 'Filter Tracks',
+                subtitle: _state.hasActiveFilters
+                    ? '${_state.activeFilterCount} filter'
+                          '${_state.activeFilterCount == 1 ? '' : 's'} on'
+                          ' • ${widget.songs.length} tracks'
+                    : '${widget.songs.length} tracks in your library',
+                trailing: _state.hasActiveFilters
+                    ? PremiumSheetPill(
+                        label: 'Reset',
+                        icon: Icons.refresh_rounded,
+                        color: activeTheme.highlightColor,
+                        onTap: () {
+                          setState(() {
+                            _state = _state.reset();
+                          });
+                        },
+                      )
+                    : null,
               ),
             ),
-            const SizedBox(height: 12),
-            const Divider(color: AppColors.glassBorderSubtle, height: 1),
+            const SizedBox(height: 14),
+            _buildHairline(activeTheme),
 
             // Scrollable Filter Sections
             Expanded(
@@ -319,7 +297,7 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
             ),
 
             const SizedBox(height: 10),
-            const Divider(color: AppColors.glassBorderSubtle, height: 1),
+            _buildHairline(activeTheme),
             const SizedBox(height: 14),
 
             // Bottom Actions: Apply Button
@@ -331,7 +309,14 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                     child: OutlinedButton(
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.white,
-                        side: const BorderSide(color: AppColors.glassBorder),
+                        backgroundColor: AppColors.glassWhite.withValues(
+                          alpha: 0.05,
+                        ),
+                        side: BorderSide(
+                          color: activeTheme.highlightColor.withValues(
+                            alpha: 0.28,
+                          ),
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(20),
                         ),
@@ -365,18 +350,47 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
     );
   }
 
+  Widget _buildHairline(AppThemeType activeTheme) {
+    return Container(
+      height: 1,
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.transparent,
+            activeTheme.highlightColor.withValues(alpha: 0.45),
+            Colors.transparent,
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildSectionHeader(String title, IconData icon) {
+    final activeTheme = ref.watch(themeProvider);
     return Row(
       children: [
-        Icon(icon, size: 16, color: AppColors.textMuted),
-        const SizedBox(width: 6),
-        Text(
-          title,
-          style: AppTextStyles.subtitle.copyWith(
-            fontSize: 12.5,
-            fontWeight: FontWeight.w700,
-            color: Colors.white,
-            letterSpacing: 0.2,
+        Container(
+          width: 24,
+          height: 24,
+          decoration: BoxDecoration(
+            color: activeTheme.primaryAccent.withValues(alpha: 0.16),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 14, color: activeTheme.highlightColor),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.subtitle.copyWith(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+              letterSpacing: 0.2,
+            ),
           ),
         ),
       ],
@@ -388,24 +402,28 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
     required bool isSelected,
     required VoidCallback onTap,
   }) {
-    final scheme = Theme.of(context).colorScheme;
+    final activeTheme = ref.watch(themeProvider);
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? scheme.secondary : AppColors.glassWhiteMedium,
+          gradient: isSelected ? activeTheme.primaryGradient : null,
+          color: isSelected ? null : AppColors.glassWhiteMedium,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? scheme.tertiary : AppColors.glassBorderSubtle,
+            color: isSelected
+                ? activeTheme.highlightColor.withValues(alpha: 0.55)
+                : AppColors.glassBorderSubtle,
             width: 1,
           ),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: scheme.secondary.withValues(alpha: 0.35),
-                    blurRadius: 8,
+                    color: activeTheme.primaryAccent.withValues(alpha: 0.34),
+                    blurRadius: 12,
+                    offset: const Offset(0, 3),
                   ),
                 ]
               : null,
@@ -414,8 +432,10 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
           label,
           style: TextStyle(
             fontSize: 12,
-            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-            color: isSelected ? Colors.white : AppColors.textSecondary,
+            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+            color: isSelected
+                ? activeTheme.onPrimaryGradient
+                : AppColors.textSecondary,
           ),
         ),
       ),

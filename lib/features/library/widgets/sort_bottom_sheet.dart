@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:soundwave/app/theme/app_colors.dart';
-import 'package:soundwave/app/theme/text_styles.dart';
+import 'package:soundwave/app/theme/theme_model.dart';
+import 'package:soundwave/core/widgets/premium_sheet.dart';
 import 'package:soundwave/features/library/models/song_filter_state.dart';
+import 'package:soundwave/shared/providers/theme_provider.dart';
 
-class SortBottomSheet extends StatelessWidget {
+class SortBottomSheet extends ConsumerWidget {
   final SongSortOption currentSort;
 
   const SortBottomSheet({
@@ -24,105 +27,145 @@ class SortBottomSheet extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final activeTheme = ref.watch(themeProvider);
+    final current = SongSortOption.values
+        .where((option) => option == currentSort)
+        .firstOrNull;
+
     return Container(
-      decoration: BoxDecoration(
-        color: scheme.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        border: Border.all(
-          color: AppColors.glassBorder.withValues(alpha: 0.35),
-          width: 1,
-        ),
-      ),
+      decoration: premiumSheetDecoration(activeTheme, radius: 28),
       constraints: BoxConstraints(
         maxHeight: MediaQuery.of(context).size.height * 0.75,
       ),
-      padding: const EdgeInsets.only(top: 20, bottom: 24),
+      padding: const EdgeInsets.only(bottom: 18),
       child: SafeArea(
         top: false,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Handle Bar
-            Center(
-              child: Container(
-                width: 44,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(2),
+            PremiumSheetHandle(theme: activeTheme),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: PremiumSheetHeader(
+                theme: activeTheme,
+                icon: Icons.sort_rounded,
+                title: 'Sort Tracks By',
+                subtitle: current == null
+                    ? '${SongSortOption.values.length} ways to order your library'
+                    : 'Now showing • ${current.label}',
+              ),
+            ),
+            const SizedBox(height: 14),
+            Container(
+              height: 1,
+              margin: const EdgeInsets.symmetric(horizontal: 20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.transparent,
+                    activeTheme.highlightColor.withValues(alpha: 0.45),
+                    Colors.transparent,
+                  ],
                 ),
               ),
             ),
-            const SizedBox(height: 16),
-
-            // Header
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Row(
-                children: [
-                  Icon(Icons.sort_rounded, color: scheme.primary, size: 22),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Sort Tracks By',
-                    style: AppTextStyles.cardTitle.copyWith(fontSize: 18),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            const Divider(color: AppColors.glassBorderSubtle, height: 1),
-
-            // Sort Options List
+            const SizedBox(height: 6),
             Expanded(
               child: ListView.separated(
                 physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
                 itemCount: SongSortOption.values.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 4),
+                separatorBuilder: (_, _) => const SizedBox(height: 6),
                 itemBuilder: (context, index) {
                   final option = SongSortOption.values[index];
-                  final isSelected = option == currentSort;
-
-                  return Container(
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? scheme.secondary.withValues(alpha: 0.25)
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(14),
-                      border: isSelected
-                          ? Border.all(color: scheme.tertiary.withValues(alpha: 0.5), width: 1)
-                          : null,
-                    ),
-                    child: ListTile(
-                      dense: true,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      leading: Icon(
-                        _getIconForOption(option),
-                        color: isSelected ? scheme.tertiary : AppColors.textSecondary,
-                        size: 20,
-                      ),
-                      title: Text(
-                        option.label,
-                        style: TextStyle(
-                          color: isSelected ? Colors.white : AppColors.textSecondary,
-                          fontSize: 14,
-                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                        ),
-                      ),
-                      trailing: isSelected
-                          ? Icon(Icons.check_circle_rounded, color: scheme.tertiary, size: 20)
-                          : null,
-                      onTap: () {
-                        Navigator.pop(context, option);
-                      },
-                    ),
+                  return _buildOption(
+                    context,
+                    activeTheme,
+                    option,
+                    option == currentSort,
                   );
                 },
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOption(
+    BuildContext context,
+    AppThemeType activeTheme,
+    SongSortOption option,
+    bool isSelected,
+  ) {
+    final foreground =
+        isSelected ? activeTheme.onPrimaryGradient : Colors.white;
+
+    return GestureDetector(
+      onTap: () => Navigator.pop(context, option),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          gradient: isSelected ? activeTheme.primaryGradient : null,
+          color: isSelected ? null : AppColors.glassWhite.withValues(alpha: 0.04),
+          border: Border.all(
+            color: isSelected
+                ? activeTheme.highlightColor.withValues(alpha: 0.55)
+                : AppColors.glassBorderSubtle,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: activeTheme.primaryAccent.withValues(alpha: 0.32),
+                    blurRadius: 14,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? Colors.white.withValues(alpha: 0.18)
+                    : activeTheme.primaryAccent.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: Icon(
+                _getIconForOption(option),
+                size: 17,
+                color: isSelected ? foreground : activeTheme.highlightColor,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                option.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: isSelected
+                      ? foreground
+                      : Colors.white.withValues(alpha: 0.88),
+                  fontSize: 14,
+                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+                ),
+              ),
+            ),
+            if (isSelected)
+              Icon(
+                Icons.check_circle_rounded,
+                color: foreground,
+                size: 20,
+              ),
           ],
         ),
       ),
