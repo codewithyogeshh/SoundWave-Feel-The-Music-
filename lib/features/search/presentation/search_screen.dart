@@ -657,58 +657,109 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             // Filter Chips
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
               physics: const BouncingScrollPhysics(),
               child: Row(
                 children: SearchFilter.values.map((filter) {
                   final isSelected = searchState.filter == filter;
                   String label = 'All';
+                  IconData icon = Icons.apps_rounded;
                   switch (filter) {
                     case SearchFilter.all:
                       label = 'All';
+                      icon = Icons.apps_rounded;
                       break;
                     case SearchFilter.online:
                       label = 'Online';
+                      icon = Icons.cloud_rounded;
                       break;
                     case SearchFilter.songs:
                       label = 'Songs';
+                      icon = Icons.music_note_rounded;
                       break;
                     case SearchFilter.artists:
                       label = 'Artists';
+                      icon = Icons.person_rounded;
                       break;
                     case SearchFilter.albums:
                       label = 'Albums';
+                      icon = Icons.album_rounded;
                       break;
                     case SearchFilter.localOnly:
                       label = 'Device Audio';
+                      icon = Icons.phone_android_rounded;
                       break;
                   }
 
                   return Padding(
                     padding: const EdgeInsets.only(right: 8),
-                    child: FilterChip(
-                      selected: isSelected,
-                      checkmarkColor: selectedChipTextColor,
-                      label: Text(label),
-                      labelStyle: TextStyle(
-                        fontSize: 12,
-                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                        color: isSelected ? selectedChipTextColor : AppColors.textSecondary,
-                      ),
-                      backgroundColor: AppColors.glassWhiteMedium,
-                      selectedColor: activeTheme.primaryAccent,
-                      side: BorderSide(
-                        color: isSelected
-                            ? activeTheme.highlightColor
-                            : AppColors.glassBorderSubtle,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      onSelected: (_) {
+                    child: GestureDetector(
+                      onTap: () {
                         HapticFeedback.selectionClick();
                         searchNotifier.setFilter(filter);
                       },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 220),
+                        curve: Curves.easeOut,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 13,
+                          vertical: 9,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: isSelected
+                              ? LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    activeTheme.primaryAccent,
+                                    activeTheme.highlightColor,
+                                  ],
+                                )
+                              : null,
+                          color: isSelected ? null : AppColors.glassWhiteMedium,
+                          borderRadius: BorderRadius.circular(30),
+                          border: Border.all(
+                            color: isSelected
+                                ? activeTheme.highlightColor
+                                : AppColors.glassBorderSubtle,
+                          ),
+                          boxShadow: isSelected
+                              ? [
+                                  BoxShadow(
+                                    color: activeTheme.primaryAccent
+                                        .withValues(alpha: 0.38),
+                                    blurRadius: 14,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ]
+                              : null,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              icon,
+                              size: 14,
+                              color: isSelected
+                                  ? selectedChipTextColor
+                                  : AppColors.textMuted,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              label,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: isSelected
+                                    ? FontWeight.w800
+                                    : FontWeight.w600,
+                                color: isSelected
+                                    ? selectedChipTextColor
+                                    : AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   );
                 }).toList(),
@@ -948,20 +999,73 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   Widget _buildPopularSearchTile(String title, IconData icon, AppThemeType activeTheme) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: Icon(icon, color: activeTheme.primaryAccent, size: 20),
-      title: Text(title, style: AppTextStyles.songTitle.copyWith(fontSize: 14)),
-      trailing: const Icon(
-        Icons.north_west_rounded,
-        color: AppColors.textMuted,
-        size: 16,
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            activeTheme.primaryAccent.withValues(alpha: 0.14),
+            AppColors.glassWhite.withValues(alpha: 0.03),
+          ],
+        ),
+        border: Border.all(color: AppColors.glassBorderSubtle),
       ),
-      onTap: () {
-        HapticFeedback.selectionClick();
-        _searchController.text = title;
-        ref.read(searchProvider.notifier).submitSearch(title);
-      },
+      child: ListTile(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+        leading: Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                activeTheme.primaryAccent.withValues(alpha: 0.95),
+                activeTheme.secondaryAccent.withValues(alpha: 0.7),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: activeTheme.primaryAccent.withValues(alpha: 0.32),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Icon(
+            icon,
+            color: AppThemeType.readableOn([
+              activeTheme.primaryAccent,
+              activeTheme.secondaryAccent,
+            ]),
+            size: 19,
+          ),
+        ),
+        title: Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: AppTextStyles.songTitle.copyWith(
+            fontSize: 13.5,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        trailing: const Icon(
+          Icons.north_east_rounded,
+          color: AppColors.textMuted,
+          size: 16,
+        ),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          _searchController.text = title;
+          ref.read(searchProvider.notifier).submitSearch(title);
+        },
+      ),
     );
   }
 
