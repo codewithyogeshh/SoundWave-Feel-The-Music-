@@ -2,14 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:soundwave/app/theme/app_colors.dart';
 import 'package:soundwave/app/theme/text_styles.dart';
+import 'package:soundwave/app/theme/theme_model.dart';
 import 'package:soundwave/core/widgets/album_artwork.dart';
 import 'package:soundwave/core/widgets/glass_card.dart';
+import 'package:soundwave/core/widgets/premium_sheet.dart';
 import 'package:soundwave/features/online/services/download_service.dart';
 import 'package:soundwave/features/player/models/song_model.dart';
 import 'package:soundwave/shared/providers/download_provider.dart';
 import 'package:soundwave/shared/providers/library_provider.dart';
 import 'package:soundwave/shared/providers/playback_prefs_provider.dart';
 import 'package:soundwave/shared/providers/player_provider.dart';
+import 'package:soundwave/shared/providers/theme_provider.dart';
 
 /// Starts the download straight away in the folder chosen in Settings, so the
 /// app never asks "where should this go?" again. The sheet is only shown for a
@@ -29,12 +32,16 @@ void showDownloadOptionsSheet(BuildContext context, SongModel song) {
 
   showModalBottomSheet(
     context: context,
-    backgroundColor: Theme.of(context).colorScheme.surface,
+    backgroundColor: Colors.transparent,
     isScrollControlled: true,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
     ),
-    builder: (ctx) => DownloadOptionsSheet(song: song),
+    builder: (ctx) => Container(
+      decoration: premiumSheetDecoration(container.read(themeProvider), radius: 28),
+      clipBehavior: Clip.antiAlias,
+      child: DownloadOptionsSheet(song: song),
+    ),
   );
 }
 
@@ -85,6 +92,7 @@ class DownloadOptionsSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final theme = ref.watch(themeProvider);
     final downloadState = ref.watch(downloadProvider);
     final libState = ref.watch(libraryProvider);
     final toPhoneStorage =
@@ -107,17 +115,7 @@ class DownloadOptionsSheet extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Drag Handle Pill
-            Center(
-              child: Container(
-                width: 44,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
+            PremiumSheetHandle(theme: theme),
 
             // Song Info Header Card
             GlassCard(
@@ -208,9 +206,25 @@ class DownloadOptionsSheet extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: AppColors.secondaryBackground,
                   borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: AppColors.neonBlue.withValues(alpha: 0.5)),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      theme.primaryAccent.withValues(alpha: 0.22),
+                      AppColors.glassWhite.withValues(alpha: 0.05),
+                    ],
+                  ),
+                  border: Border.all(
+                    color: theme.highlightColor.withValues(alpha: 0.38),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: theme.primaryAccent.withValues(alpha: 0.22),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -266,15 +280,17 @@ class DownloadOptionsSheet extends ConsumerWidget {
             ],
 
             // Section Title
-            Text(
-              isAlreadyDownloaded ? 'Song Downloaded' : 'Saving Download',
-              style: AppTextStyles.sectionTitle.copyWith(
-                fontSize: 16.5,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.3,
-              ),
+            PremiumSheetHeader(
+              theme: theme,
+              icon: isAlreadyDownloaded
+                  ? Icons.download_done_rounded
+                  : Icons.downloading_rounded,
+              title: isAlreadyDownloaded ? 'Song Downloaded' : 'Saving Download',
+              subtitle: isAlreadyDownloaded
+                  ? 'Stored on this device - plays without internet'
+                  : 'Saving audio and cover banner...',
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
 
             if (isAlreadyDownloaded) ...[
               // Already downloaded banner
@@ -392,10 +408,28 @@ class DownloadOptionsSheet extends ConsumerWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: iconColor.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(12),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  iconColor.withValues(alpha: 0.95),
+                  iconColor.withValues(alpha: 0.55),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(13),
+              boxShadow: [
+                BoxShadow(
+                  color: iconColor.withValues(alpha: 0.32),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-            child: Icon(icon, color: iconColor, size: 24),
+            child: Icon(
+              icon,
+              color: AppThemeType.readableOn([iconColor]),
+              size: 23,
+            ),
           ),
           const SizedBox(width: 14),
           Expanded(
