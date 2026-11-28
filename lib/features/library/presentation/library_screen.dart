@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:soundwave/app/theme/app_colors.dart';
 import 'package:soundwave/app/theme/text_styles.dart';
+import 'package:soundwave/app/theme/theme_model.dart';
 import 'package:soundwave/core/widgets/album_artwork.dart';
 import 'package:soundwave/core/widgets/empty_state_widget.dart';
 import 'package:soundwave/core/widgets/featured_music_banner.dart';
@@ -176,7 +177,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                 Tab(text: 'Playlists (${libState.playlists.length})'),
                 Tab(text: 'Songs (${libState.allSongs.length})'),
                 Tab(text: 'Favorites (${libState.favoriteIds.length})'),
-                Tab(text: 'Recently Played'),
+                Tab(text: 'Recently Played (${libState.recentlyPlayedSongs.length})'),
                 Tab(text: 'Device Audio (${libState.localSongs.length})'),
               ],
             ),
@@ -192,7 +193,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                   _buildPlaylistsTab(libState.playlists),
                   _buildSongsTab(libState.allSongs, libState.favoriteIds, libState.recentlyPlayedIds),
                   _buildFavoritesTab(libState.favoriteSongs, libState.favoriteIds, libState.recentlyPlayedIds),
-                  _buildRecentlyPlayedTab(libState.recentlyPlayedSongs, libState.favoriteIds, libState.recentlyPlayedIds),
+                  _buildRecentlyPlayedTab(libState.recentlyPlayedSongs, libState.favoriteIds, libState.recentlyPlayedIds, activeTheme),
                   _buildDeviceAudioTab(libState),
                 ],
               ),
@@ -511,6 +512,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     List<SongModel> recent,
     Set<String> favoriteIds,
     List<String> recentlyPlayedIds,
+    AppThemeType activeTheme,
   ) {
     if (recent.isEmpty) {
       return const EmptyStateWidget(
@@ -531,11 +533,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       physics: const BouncingScrollPhysics(),
       slivers: [
         SliverToBoxAdapter(
-          child: FeaturedMusicBanner(
-            song: recent.firstOrNull,
-            queue: recent,
-            badgeText: 'RECENT REPLAY',
-          ),
+          child: _buildRecentHeader(recent, activeTheme),
         ),
         SliverToBoxAdapter(
           child: SongFilterBar(
@@ -579,6 +577,192 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         const SliverToBoxAdapter(child: SizedBox(height: 175)),
       ],
     );
+  }
+
+  /// Header for the Recently Played tab: how many tracks are stored, play all
+  /// and shuffle for the whole history, and a way to clear it.
+  Widget _buildRecentHeader(List<SongModel> recent, AppThemeType activeTheme) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 14, 20, 4),
+      child: GlassCard(
+        borderRadius: 20,
+        blur: 0,
+        color: AppColors.glassWhiteMedium,
+        borderColor: AppColors.glassBorderSubtle,
+        padding: const EdgeInsets.fromLTRB(16, 14, 12, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.history_rounded,
+                  color: AppColors.textMuted,
+                  size: 20,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Your listening history',
+                        style: AppTextStyles.songTitle.copyWith(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${recent.length} tracks saved • newest first',
+                        style: AppTextStyles.artistName.copyWith(
+                          fontSize: 11.5,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                _buildRecentActionPill(
+                  'Play all',
+                  Icons.play_arrow_rounded,
+                  activeTheme,
+                  filled: true,
+                  onTap: () => _playHistory(recent),
+                ),
+                const SizedBox(width: 8),
+                _buildRecentActionPill(
+                  'Shuffle',
+                  Icons.shuffle_rounded,
+                  activeTheme,
+                  onTap: () => _playHistory(recent, shuffle: true),
+                ),
+                const Spacer(),
+                IconButton(
+                  tooltip: 'Clear listening history',
+                  onPressed: _confirmClearHistory,
+                  icon: const Icon(
+                    Icons.delete_outline_rounded,
+                    color: AppColors.textMuted,
+                    size: 20,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecentActionPill(
+    String label,
+    IconData icon,
+    AppThemeType activeTheme, {
+    required VoidCallback onTap,
+    bool filled = false,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          gradient: filled ? activeTheme.accentGradient : null,
+          color: filled ? null : AppColors.glassWhiteMedium,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: filled
+                ? activeTheme.highlightColor.withValues(alpha: 0.6)
+                : AppColors.glassBorderSubtle,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 15,
+              color: filled
+                  ? activeTheme.onAccentGradient
+                  : activeTheme.primaryAccent,
+            ),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: TextStyle(
+                color: filled
+                    ? activeTheme.onAccentGradient
+                    : AppColors.textSecondary,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Plays the whole history as the queue, starting from the newest track or
+  /// from a random one when shuffle is on.
+  void _playHistory(List<SongModel> songs, {bool shuffle = false}) {
+    if (songs.isEmpty) return;
+    final queue = shuffle ? (List<SongModel>.of(songs)..shuffle()) : songs;
+    ref.read(playerProvider.notifier).playTrack(queue.first, queue: queue);
+  }
+
+  Future<void> _confirmClearHistory() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.secondaryBackground,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: const Text(
+          'Clear listening history?',
+          style: TextStyle(color: Colors.white, fontSize: 17),
+        ),
+        content: const Text(
+          'Every song is removed from Recently Played. Downloads, playlists and favourites stay as they are.',
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 13.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: AppColors.textMuted),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text(
+              'Clear',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await ref.read(libraryProvider.notifier).clearHistory();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Listening history cleared.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+    }
   }
 
   Widget _buildDeviceAudioTab(LibraryState state) {

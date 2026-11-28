@@ -215,8 +215,8 @@ class LibraryStorageService {
     List<String> list = List.from(getRecentlyPlayedIds());
     list.remove(songId);
     list.insert(0, songId);
-    if (list.length > 50) {
-      list = list.sublist(0, 50);
+    if (list.length > 100) {
+      list = list.sublist(0, 100);
     }
     await _prefs.setStringList(_keyRecentlyPlayed, list);
     await incrementTotalSongsPlayed();
@@ -239,7 +239,7 @@ class LibraryStorageService {
     final current = getRecentlyPlayedSongs();
     current.removeWhere((s) => s.id == song.id);
     current.insert(0, song);
-    final trimmed = current.length > 50 ? current.sublist(0, 50) : current;
+    final trimmed = current.length > 100 ? current.sublist(0, 100) : current;
     await _prefs.setStringList(
       _keyRecentlyPlayedSongs,
       trimmed.map((s) => s.toJson()).toList(),

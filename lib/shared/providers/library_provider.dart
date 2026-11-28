@@ -280,6 +280,16 @@ class LibraryNotifier extends Notifier<LibraryState> {
     );
   }
 
+  /// Wipes the listening history but leaves downloads, playlists and
+  /// favourites untouched.
+  Future<void> clearHistory() async {
+    await _storage.clearRecentlyPlayedSongs();
+    state = state.copyWith(
+      recentlyPlayedIds: const [],
+      recentlyPlayedSongs: const [],
+    );
+  }
+
   Future<void> createPlaylist(String name, {String description = ''}) async {
     final trimmedName = name.trim();
     if (trimmedName.isEmpty) return;
