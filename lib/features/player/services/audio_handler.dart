@@ -138,6 +138,18 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
   double _volumeBeforeDuck = 1.0;
   bool _disposed = false;
 
+  // Fade in/out so playback never starts or stops with a hard volume jump.
+  static const Duration _fadeInDuration = Duration(milliseconds: 700);
+  static const Duration _fadeOutDuration = Duration(milliseconds: 420);
+  static const Duration _fadeTick = Duration(milliseconds: 40);
+  static const double _fadeFloor = 0.005;
+
+  Timer? _fadeTimer;
+
+  /// The volume the listener actually asked for. Fades move away from it and
+  /// always come back to it, so a fade never changes the saved level.
+  double _targetVolume = 1.0;
+
   /// Stops playback when headphones are unplugged or a headset disconnects.
   /// Toggled from Profile & Settings and remembered across launches.
   bool pauseOnHeadphoneUnplug = true;
@@ -214,6 +226,7 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
     ++_loadGeneration;
     _isTransitioningTrack = false;
     _wasPlayingBeforeInterruption = false;
+    _cancelVolumeFade();
     _noisySub?.cancel();
     _interruptionSub?.cancel();
     _playbackEventSub?.cancel();
@@ -239,7 +252,8 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
         if (event.begin) {
           switch (event.type) {
             case AudioInterruptionType.duck:
-              _volumeBeforeDuck = _player.volume;
+              _cancelVolumeFade();
+              _volumeBeforeDuck = _targetVolume;
               _player.setVolume((_volumeBeforeDuck * 0.4).clamp(0.1, 1.0));
               _wasPlayingBeforeInterruption = false;
               break;
@@ -352,9 +366,85 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
   }
 
   Future<void> _safePausePlayer() async {
+    _cancelVolumeFade();
     try {
       await _player.pause();
     } catch (_) {}
+  }
+
+  void _cancelVolumeFade() {
+    _fadeTimer?.cancel();
+    _fadeTimer = null;
+  }
+
+  /// Ramps the player up from silence to the listener's chosen volume.
+  void _startVolumeFadeIn() {
+    _cancelVolumeFade();
+    final target = _targetVolume.clamp(0.0, 1.0);
+    if (target <= _fadeFloor || _disposed) {
+      unawaited(_player.setVolume(target));
+      return;
+    }
+    final steps =
+        (_fadeInDuration.inMilliseconds / _fadeTick.inMilliseconds).ceil();
+    var step = 0;
+    unawaited(_player.setVolume(0.0));
+    _fadeTimer = Timer.periodic(_fadeTick, (timer) {
+      step++;
+      final progress = step / steps;
+      if (progress >= 1.0 || _disposed) {
+        timer.cancel();
+        _fadeTimer = null;
+        unawaited(_player.setVolume(target));
+        return;
+      }
+      // Ease-out curve: quick first lift, gentle arrival at full level.
+      final eased = 1.0 - (1.0 - progress) * (1.0 - progress);
+      unawaited(_player.setVolume(target * eased));
+    });
+  }
+
+  /// Lowers the volume to silence, then leaves the player at the listener's
+  /// level so the next fade-in starts from the right place.
+  Future<void> _fadeOutForPause() async {
+    _cancelVolumeFade();
+    if (!_player.playing) return;
+    final start = _player.volume.clamp(0.0, 1.0);
+    if (start <= _fadeFloor) return;
+    final steps =
+        (_fadeOutDuration.inMilliseconds / _fadeTick.inMilliseconds).ceil();
+    final done = Completer<void>();
+    var step = 0;
+    _fadeTimer = Timer.periodic(_fadeTick, (timer) {
+      step++;
+      final remaining = 1.0 - (step / steps);
+      if (remaining <= 0.0 || _disposed) {
+        timer.cancel();
+        _fadeTimer = null;
+        unawaited(_player.setVolume(0.0));
+        if (!done.isCompleted) done.complete();
+        return;
+      }
+      unawaited(_player.setVolume(start * remaining));
+    });
+    await done.future;
+    unawaited(_player.setVolume(_targetVolume.clamp(0.0, 1.0)));
+  }
+
+  /// Starts playback from silence and fades up to the chosen volume.
+  Future<void> _beginPlaybackWithFadeIn({int? generation}) async {
+    try {
+      _cancelVolumeFade();
+      await _player.setVolume(0.0);
+      if (_disposed) return;
+      if (generation != null && generation != _loadGeneration) return;
+      _startVolumeFadeIn();
+      await _player.play();
+    } catch (e) {
+      if (!_disposed) {
+        debugPrint('Error starting playback: $e');
+      }
+    }
   }
 
   Future<void> loadQueue(List<SongModel> songs, {int initialIndex = 0}) async {
@@ -471,13 +561,7 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
       _isTransitioningTrack = false;
 
       if (autoPlay && !_userPausedDuringLoad) {
-        unawaited(
-          _player.play().catchError((Object e) {
-            if (generation == _loadGeneration && !_disposed) {
-              debugPrint('Error starting playback: $e');
-            }
-          }),
-        );
+        unawaited(_beginPlaybackWithFadeIn(generation: generation));
       }
     } on PlayerInterruptedException {
       // Expected whenever user skips rapidly to a newer song.
@@ -498,13 +582,9 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
     _userPausedDuringLoad = false;
     await _audioSessionReady;
     if (_disposed || _userPausedDuringLoad) return;
-    unawaited(
-      _player.play().catchError((Object e) {
-        if (!_disposed) {
-          debugPrint('Play error: $e');
-        }
-      }),
-    );
+    // Already running: a second fade-in here would dip the volume.
+    if (_player.playing) return;
+    unawaited(_beginPlaybackWithFadeIn());
   }
 
   @override
@@ -513,6 +593,7 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
     _wasPlayingBeforeInterruption = false;
     _userPausedDuringLoad = true;
     try {
+      await _fadeOutForPause();
       await _player.pause();
     } catch (e) {
       debugPrint('Pause error: $e');
@@ -525,6 +606,7 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
     _isTransitioningTrack = false;
     _wasPlayingBeforeInterruption = false;
     _userPausedDuringLoad = true;
+    _cancelVolumeFade();
     try {
       await _player.stop();
     } catch (e) {
@@ -655,7 +737,9 @@ class SoundWaveAudioHandler extends BaseAudioHandler with SeekHandler {
 
   Future<void> setPlaybackVolume(double volume) async {
     if (_disposed) return;
-    await _player.setVolume(volume.clamp(0.0, 1.0));
+    _targetVolume = volume.clamp(0.0, 1.0);
+    _cancelVolumeFade();
+    await _player.setVolume(_targetVolume);
   }
 
   Future<void> updateSongQueue(List<SongModel> newQueue, {int? newIndex}) async {
