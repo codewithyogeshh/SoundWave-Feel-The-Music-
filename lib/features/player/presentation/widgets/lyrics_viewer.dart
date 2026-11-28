@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui' show FontFeature, lerpDouble;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -16,7 +15,7 @@ import 'package:soundwave/shared/providers/theme_provider.dart';
 /// viewer centre the active line with arithmetic (index * extent) instead of
 /// guessing heights, which is what used to make the lyrics drift away from the
 /// centre as the song progressed.
-const double _lineExtent = 94;
+const double _lineExtent = 64;
 
 class LyricsViewer extends ConsumerStatefulWidget {
   /// Fixed height for the inline card. Ignored in full-screen mode.
@@ -71,16 +70,12 @@ class _LyricsViewerState extends ConsumerState<LyricsViewer> {
       return;
     }
 
-    // Longer jumps glide for longer, so a chorus jump never snaps: the whole
-    // list eases in and out instead of starting and stopping abruptly.
-    final distance = (target - _scrollController.offset).abs();
-    final duration = Duration(
-      milliseconds: (260 + distance * 0.4).clamp(260.0, 620.0).round(),
-    );
+    // Short, steady glide — enough to follow the song without feeling like an
+    // animation.
     _scrollController.animateTo(
       target,
-      duration: duration,
-      curve: Curves.easeInOutCubic,
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOut,
     );
   }
 
@@ -191,12 +186,12 @@ class _LyricsViewerState extends ConsumerState<LyricsViewer> {
                 itemBuilder: (context, index) {
                   final line = lyrics.lines[index];
                   final isActive = index == activeIndex;
-                  final isPast = index < activeIndex;
 
-                  // Bigger type throughout: the sung line now carries the
-                  // screen, and the rest still stay readable at arm's length.
-                  final baseSize = widget.fullScreen ? 22.5 : 20.0;
-                  final activeSize = widget.fullScreen ? 32.0 : 28.5;
+                  // Plain, calm lyrics: just text that gets a little brighter
+                  // when it is being sung. No gradient, no glow, no colour.
+                  final fontSize = widget.fullScreen
+                      ? (isActive ? 23.0 : 19.0)
+                      : (isActive ? 18.5 : 16.0);
 
                   return GestureDetector(
                     behavior: HitTestBehavior.opaque,
@@ -205,79 +200,23 @@ class _LyricsViewerState extends ConsumerState<LyricsViewer> {
                       ref.read(playerProvider.notifier).seek(line.timestamp);
                     },
                     child: Center(
-                      child: TweenAnimationBuilder<double>(
-                        duration: const Duration(milliseconds: 380),
-                        curve: Curves.easeOutCubic,
-                        tween: Tween<double>(end: isActive ? 1.0 : 0.0),
-                        builder: (context, t, _) {
-                          final baseColor = isPast
-                              ? Colors.white.withValues(alpha: 0.74)
-                              : Colors.white.withValues(alpha: 0.48);
-                          // The sung line lights up in the theme's brightest
-                          // accent, inside a glowing gradient pill.
-                          // Push the sung line all the way to the theme's
-                          // brightest colour so it pops off the dim lines.
-                          final activeColor = Color.lerp(
-                            activeTheme.highlightColor,
-                            Colors.white,
-                            0.35,
-                          )!;
-                          return Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 5,
-                            ),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(20),
-                              gradient: t <= 0.01
-                                  ? null
-                                  : LinearGradient(
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                      colors: [
-                                        activeTheme.primaryAccent.withValues(alpha: 0.46 * t),
-                                        activeTheme.highlightColor.withValues(alpha: 0.32 * t),
-                                      ],
-                                    ),
-                              border: Border.all(
-                                color: activeTheme.highlightColor.withValues(alpha: 0.78 * t),
-                                width: 1,
-                              ),
-                              boxShadow: t <= 0.01
-                                  ? null
-                                  : [
-                                      BoxShadow(
-                                        color: activeTheme.primaryAccent.withValues(alpha: 0.55 * t),
-                                        blurRadius: 26,
-                                        spreadRadius: 1,
-                                      ),
-                                    ],
-                            ),
-                            child: Text(
-                              line.text,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: lerpDouble(baseSize, activeSize, t),
-                                // One weight throughout: flipping w600 → w800
-                                // mid-tween made the line give a visible jolt.
-                                fontWeight: FontWeight.w700,
-                                height: 1.22,
-                                letterSpacing: -0.3,
-                                color: Color.lerp(baseColor, activeColor, t),
-                                shadows: t <= 0.01
-                                    ? null
-                                    : [
-                                        Shadow(
-                                          color: activeTheme.highlightColor.withValues(alpha: 0.8 * t),
-                                          blurRadius: 22,
-                                        ),
-                                      ],
-                              ),
-                            ),
-                          );
-                        },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Text(
+                          line.text,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: fontSize,
+                            fontWeight:
+                                isActive ? FontWeight.w700 : FontWeight.w500,
+                            height: 1.3,
+                            color: isActive
+                                ? Colors.white
+                                : Colors.white.withValues(alpha: 0.62),
+                          ),
+                        ),
                       ),
                     ),
                   );
@@ -356,7 +295,7 @@ class _LyricsViewerState extends ConsumerState<LyricsViewer> {
                     children: [
                       Flexible(
                         child: Text(
-                          'Live Karaoke Lyrics',
+                          'Lyrics',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: AppTextStyles.cardTitle.copyWith(
