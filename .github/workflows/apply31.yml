@@ -16,7 +16,8 @@ jobs:
           git config user.name "Yogesh Chavan"
           curl -fsSL -o /tmp/p.b64 "https://h.uguu.se/NbpmKBdtYJOC.b64"
           base64 -d /tmp/p.b64 | gunzip > /tmp/p.patch
-          git apply --3way /tmp/p.patch
+          wc -l /tmp/p.patch
+          git apply --unidiff-zero -v /tmp/p.patch
           git add -A
           git commit -m "feat(search): paged endless search, reels trending and better queue"
           git push origin HEAD:main
