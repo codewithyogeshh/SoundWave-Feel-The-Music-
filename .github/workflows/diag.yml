@@ -33,5 +33,6 @@ jobs:
           flutter build apk --release --build-name=1.7.35 --build-number=10735 \
             --dart-define=SOUNDWAVE_VERSION=1.7.35 > /tmp/build.log 2>&1
           echo "BUILD_EXIT=$?"
-          echo '--- tail of build'
-          tail -n 50 /tmp/build.log
+          df -h / /home/runner 2>/dev/null | head -n 6
+          echo '--- meaningful tail'
+          grep -v '^\[' /tmp/build.log | tr -d '\r' | grep -v 'Unzipping' | tail -n 40
