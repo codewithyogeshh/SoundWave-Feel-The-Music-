@@ -23,18 +23,15 @@ jobs:
           KEY_ALIAS: ${{ secrets.SOUNDWAVE_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.SOUNDWAVE_KEY_PASSWORD }}
         run: |
-          set -uo pipefail
-          flutter --version
+          set +e
           flutter pub get > /tmp/pub.log 2>&1; echo "PUB_EXIT=$?"
           printf '%s' "$KEYSTORE_BASE64" | base64 -d > android/app/soundwave-release.jks
           printf 'storeFile=soundwave-release.jks\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' "$STORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" > android/key.properties
       - name: Build
         run: |
-          set -uo pipefail
+          set +e
           flutter build apk --release --build-name=1.7.35 --build-number=10735 \
             --dart-define=SOUNDWAVE_VERSION=1.7.35 > /tmp/build.log 2>&1
           echo "BUILD_EXIT=$?"
-          echo '--- tail of build';
-          tail -n 40 /tmp/build.log
-          echo '--- error lines';
-          grep -Ei "error|exception|failed|no space|killed" /tmp/build.log | tail -n 30
+          echo '--- tail of build'
+          tail -n 50 /tmp/build.log
