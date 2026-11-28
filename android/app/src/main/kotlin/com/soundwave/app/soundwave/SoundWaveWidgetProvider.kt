@@ -10,19 +10,22 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.BitmapShader
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Shader
 import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
-import android.view.View
 import android.widget.RemoteViews
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import kotlin.math.PI
+import kotlin.math.max
+import kotlin.math.sin
 
 /**
  * Home screen widget: shows the current song with album art, a progress bar and
@@ -50,6 +53,12 @@ class SoundWaveWidgetProvider : AppWidgetProvider() {
         private const val KEY_POSITION = "position"
         private const val KEY_DURATION = "duration"
         private const val KEY_PENDING = "pending_action"
+        private const val KEY_GLOW_PRIMARY = "glow_primary"
+        private const val KEY_GLOW_SECONDARY = "glow_secondary"
+
+        /** Violet fallback that matches the app's own accent. */
+        private const val DEFAULT_GLOW_PRIMARY = 0xFF8B5CF6.toInt()
+        private const val DEFAULT_GLOW_SECONDARY = 0xFF22D3EE.toInt()
 
         const val ACTION_PLAY_PAUSE = "com.soundwave.app.soundwave.WIDGET_PLAY_PAUSE"
         const val ACTION_NEXT = "com.soundwave.app.soundwave.WIDGET_NEXT"
@@ -91,6 +100,7 @@ class SoundWaveWidgetProvider : AppWidgetProvider() {
                 .putLong(KEY_DURATION, durationMs)
                 .apply()
             refresh(context)
+            if (isPlaying) GlowAnimator.start(context) else GlowAnimator.stop(context)
         }
 
         fun consumePendingAction(context: Context): String? {
@@ -132,6 +142,9 @@ class SoundWaveWidgetProvider : AppWidgetProvider() {
             ids.forEach { id ->
                 manager.updateAppWidget(id, buildViews(context, state))
             }
+            // Keep the glow in step with the song's palette, and with the pulse
+            // already running, so a progress refresh never dims the card.
+            paintGlow(context, GlowAnimator.phaseNow(), GlowAnimator.beatNow())
         }
 
         private fun buildViews(context: Context, state: WidgetState): RemoteViews {
@@ -156,24 +169,21 @@ class SoundWaveWidgetProvider : AppWidgetProvider() {
                 position.toInt(),
                 false,
             )
-            val nextTitle = state.nextTitle
-            if (nextTitle.isNullOrBlank()) {
-                views.setViewVisibility(R.id.widget_next_row, View.GONE)
-            } else {
-                views.setViewVisibility(R.id.widget_next_row, View.VISIBLE)
-                views.setTextViewText(R.id.widget_next_song, "Next: $nextTitle")
-                views.setContentDescription(R.id.widget_next_row, "Play next: $nextTitle")
-            }
-
-            // Left: where we are. Right: how much is left in the song, which is
-            // what people actually glance at.
-            views.setTextViewText(R.id.widget_elapsed, formatTime(position))
-            views.setTextViewText(
-                R.id.widget_total,
-                if (hasTrack) "-${formatTime(state.durationMs - position)}" else "0:00",
-            )
-
             applyArtwork(context, views, state.artwork)
+
+            // Sized to the album above, so the glow frames the cover instead
+            // of washing over the whole card.
+            val glow = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            views.setInt(
+                R.id.widget_glow,
+                "setColorFilter",
+                glow.getInt(KEY_GLOW_PRIMARY, DEFAULT_GLOW_PRIMARY),
+            )
+            views.setInt(
+                R.id.widget_glow_secondary,
+                "setColorFilter",
+                glow.getInt(KEY_GLOW_SECONDARY, DEFAULT_GLOW_SECONDARY),
+            )
 
             views.setOnClickPendingIntent(
                 R.id.widget_root,
@@ -192,11 +202,6 @@ class SoundWaveWidgetProvider : AppWidgetProvider() {
                 broadcast(context, ACTION_PLAY_PAUSE, 2),
             )
             views.setOnClickPendingIntent(R.id.widget_next, broadcast(context, ACTION_NEXT, 3))
-            // Tapping the "Next: ..." line jumps straight to that song.
-            views.setOnClickPendingIntent(
-                R.id.widget_next_row,
-                broadcast(context, ACTION_NEXT, 4),
-            )
             return views
         }
 
@@ -233,9 +238,7 @@ class SoundWaveWidgetProvider : AppWidgetProvider() {
                 if (file.exists()) {
                     val bitmap = decodeRounded(file)
                     if (bitmap != null) {
-                        artKey = key
-                        artBitmap = bitmap
-                        views.setImageViewBitmap(R.id.widget_art, bitmap)
+                        showArt(context, views, key, bitmap)
                         return
                     }
                 }
@@ -258,12 +261,67 @@ class SoundWaveWidgetProvider : AppWidgetProvider() {
                 else -> decodeRounded(File(key))
             }
             if (bitmap != null) {
-                artKey = key
-                artBitmap = bitmap
-                views.setImageViewBitmap(R.id.widget_art, bitmap)
+                showArt(context, views, key, bitmap)
             } else {
                 views.setImageViewResource(R.id.widget_art, R.drawable.widget_art_placeholder)
             }
+        }
+
+        /** Shows a decoded cover and remembers its colours for the beat glow. */
+        private fun showArt(
+            context: Context,
+            views: RemoteViews,
+            key: String,
+            bitmap: Bitmap,
+        ) {
+            artKey = key
+            artBitmap = bitmap
+            views.setImageViewBitmap(R.id.widget_art, bitmap)
+            rememberPalette(context, bitmap)
+        }
+
+        private fun rememberPalette(context: Context, bitmap: Bitmap) {
+            val (primary, secondary) = paletteFrom(bitmap)
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .edit()
+                .putInt(KEY_GLOW_PRIMARY, primary)
+                .putInt(KEY_GLOW_SECONDARY, secondary)
+                .apply()
+        }
+
+        /**
+         * The two most present colourful hues in the cover, so every song glows
+         * in its own colours. A grey/brown sleeve falls back to the app accent.
+         */
+        private fun paletteFrom(bitmap: Bitmap): Pair<Int, Int> {
+            val hsv = FloatArray(3)
+            val bins = FloatArray(24)
+            val stepX = (bitmap.width / 40).coerceAtLeast(1)
+            val stepY = (bitmap.height / 40).coerceAtLeast(1)
+            var x = 0
+            while (x < bitmap.width) {
+                var y = 0
+                while (y < bitmap.height) {
+                    Color.colorToHSV(bitmap.getPixel(x, y), hsv)
+                    if (hsv[1] > 0.2f && hsv[2] > 0.2f) {
+                        val bin = (hsv[0] / 15f).toInt().coerceIn(0, 23)
+                        bins[bin] += hsv[1] * hsv[2]
+                    }
+                    y += stepY
+                }
+                x += stepX
+            }
+
+            var best = -1
+            for (i in bins.indices) {
+                if (bins[i] > 0f && (best < 0 || bins[i] > bins[best])) best = i
+            }
+            if (best < 0) return DEFAULT_GLOW_PRIMARY to DEFAULT_GLOW_SECONDARY
+
+            val hue = (best * 15f + 7.5f) % 360f
+            val primary = Color.HSVToColor(floatArrayOf(hue, 0.72f, 1f))
+            val secondary = Color.HSVToColor(floatArrayOf((hue + 62f) % 360f, 0.55f, 1f))
+            return primary to secondary
         }
 
         private fun artCacheFile(context: Context, url: String): File {
@@ -362,6 +420,40 @@ class SoundWaveWidgetProvider : AppWidgetProvider() {
             return output
         }
 
+        /**
+         * Draws one glow frame. [phase] is the beat position (0..1); a negative
+         * phase means "settled", used while paused so the card keeps a soft
+         * colour without pulsing.
+         */
+        fun paintGlow(context: Context, phase: Float, beat: Int) {
+            val manager = AppWidgetManager.getInstance(context) ?: return
+            val ids = manager.getAppWidgetIds(
+                ComponentName(context, SoundWaveWidgetProvider::class.java),
+            )
+            if (ids.isEmpty()) return
+
+            val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            val primary = prefs.getInt(KEY_GLOW_PRIMARY, DEFAULT_GLOW_PRIMARY)
+            val secondary = prefs.getInt(KEY_GLOW_SECONDARY, DEFAULT_GLOW_SECONDARY)
+            val live = phase >= 0f
+            // Sharp attack and a soft fall: reads as a beat, not a sine wave.
+            val wave = max(0f, sin(phase.toDouble() * 2.0 * PI).toFloat())
+            val pulse = if (live) wave * wave * wave else 0f
+            val leading = if (!live || beat % 2 == 0) primary else secondary
+            val trailing = if (!live || beat % 2 == 0) secondary else primary
+
+            val views = RemoteViews(context.packageName, R.layout.soundwave_widget)
+            views.setInt(R.id.widget_glow, "setColorFilter", leading)
+            views.setFloat(R.id.widget_glow, "setAlpha", 0.2f + 0.55f * pulse)
+            views.setInt(R.id.widget_glow_secondary, "setColorFilter", trailing)
+            views.setFloat(R.id.widget_glow_secondary, "setAlpha", 0.14f + 0.4f * pulse)
+            try {
+                manager.partiallyUpdateAppWidget(ids, views)
+            } catch (_: Exception) {
+                // A launcher that rejects partial updates keeps the last frame.
+            }
+        }
+
         private fun broadcast(context: Context, action: String, requestCode: Int): PendingIntent {
             val intent = Intent(context, SoundWaveWidgetProvider::class.java).setAction(action)
             return PendingIntent.getBroadcast(context, requestCode, intent, pendingFlags())
@@ -384,6 +476,12 @@ class SoundWaveWidgetProvider : AppWidgetProvider() {
         appWidgetIds.forEach { id ->
             appWidgetManager.updateAppWidget(id, buildViews(context, state))
         }
+        if (state.isPlaying) GlowAnimator.start(context) else GlowAnimator.stop(context)
+    }
+
+    override fun onDisabled(context: Context) {
+        GlowAnimator.stop(context)
+        super.onDisabled(context)
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -421,5 +519,60 @@ class SoundWaveWidgetProvider : AppWidgetProvider() {
             Intent(context, MainActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
         )
+    }
+}
+
+/**
+ * Pulses the widget's glow in time with the music.
+ *
+ * It only ticks while a track is actually playing, and the audio service keeps
+ * this process alive in the background, so a paused or closed app costs nothing
+ * and the widget simply keeps its last, settled glow.
+ */
+private object GlowAnimator {
+    private val handler = Handler(Looper.getMainLooper())
+    private const val INTERVAL_MS = 120L
+
+    /** A little under two beats a second — the pulse most songs share. */
+    private const val BEAT_MS = 520f
+
+    private var running = false
+    private var phase = 0f
+    private var beat = 0
+    private var appContext: Context? = null
+
+    private val ticker = object : Runnable {
+        override fun run() {
+            if (!running) return
+            val context = appContext ?: return
+            phase += INTERVAL_MS / BEAT_MS
+            if (phase >= 1f) {
+                phase -= 1f
+                beat++
+            }
+            SoundWaveWidgetProvider.paintGlow(context, phase, beat)
+            handler.postDelayed(this, INTERVAL_MS)
+        }
+    }
+
+    /** The live pulse position, or -1 when the glow should sit still. */
+    fun phaseNow(): Float = if (running) phase else -1f
+
+    fun beatNow(): Int = beat
+
+    fun start(context: Context) {
+        appContext = context.applicationContext
+        if (running) return
+        running = true
+        handler.removeCallbacks(ticker)
+        handler.post(ticker)
+    }
+
+    fun stop(context: Context) {
+        if (!running) return
+        running = false
+        handler.removeCallbacks(ticker)
+        val app = context.applicationContext
+        SoundWaveWidgetProvider.paintGlow(app, -1f, 0)
     }
 }
