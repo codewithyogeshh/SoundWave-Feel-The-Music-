@@ -12,11 +12,13 @@ import 'package:soundwave/core/widgets/glass_card.dart';
 import 'package:soundwave/core/widgets/gradient_button.dart';
 import 'package:soundwave/features/online/widgets/download_options_sheet.dart';
 import 'package:soundwave/features/player/models/song_model.dart';
+import 'package:soundwave/features/search/utils/voice_query_cleaner.dart';
 import 'package:soundwave/shared/providers/download_provider.dart';
 import 'package:soundwave/shared/providers/library_provider.dart';
 import 'package:soundwave/shared/providers/player_provider.dart';
 import 'package:soundwave/shared/providers/search_provider.dart';
 import 'package:soundwave/shared/providers/theme_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
@@ -35,10 +37,45 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   final SpeechToText _speech = SpeechToText();
   bool _isListening = false;
 
+  /// Language used for listening. 'auto' lets the phone pick one; choosing
+  /// Marathi/Hindi/English makes the phone use that speech model, which is
+  /// what keeps spoken song names from coming out wrong.
+  static const String _voiceLangKey = 'sw_voice_search_lang';
+  static const Map<String, String> _voiceLanguageNames = {
+    'auto': 'फोनची भाषा (Auto)',
+    'mr': 'मराठी',
+    'hi': 'हिंदी',
+    'en': 'English',
+  };
+  String _voiceLang = 'auto';
+
   @override
   void initState() {
     super.initState();
     _resultsScroll.addListener(_onResultsScroll);
+    _loadVoiceLang();
+  }
+
+  Future<void> _loadVoiceLang() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getString(_voiceLangKey);
+      if (saved != null && _voiceLanguageNames.containsKey(saved) && mounted) {
+        setState(() => _voiceLang = saved);
+      }
+    } catch (_) {
+      // Keep the phone's own language.
+    }
+  }
+
+  Future<void> _setVoiceLang(String lang) async {
+    setState(() => _voiceLang = lang);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_voiceLangKey, lang);
+    } catch (_) {
+      // The choice still applies for this session.
+    }
   }
 
   /// Loads the next page of results before the user reaches the bottom, so the
@@ -61,16 +98,45 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     super.dispose();
   }
 
-  /// Picks the phone's own Marathi/Hindi/English (India) speech model when it
-  /// has one, so spoken Marathi and Hindi song names are recognised properly.
+  /// Finds the phone's speech model for a language prefix (mr, hi, en…).
+  String? _matchLocale(List<LocaleName> locales, String prefix) {
+    for (final locale in locales) {
+      final id = locale.localeId.toLowerCase().replaceAll('-', '_');
+      if (id == prefix || id.startsWith('${prefix}_')) return locale.localeId;
+    }
+    return null;
+  }
+
+  /// Picks the speech model to listen with: the language chosen in the sheet,
+  /// or the phone's own Marathi/Hindi/English (India) model when it has one.
   Future<String?> _voiceLocale() async {
     try {
       final locales = await _speech.locales();
-      for (final prefix in const ['mr', 'hi', 'gu', 'pa', 'ta', 'te', 'kn', 'bn', 'ml', 'en_in']) {
-        for (final locale in locales) {
-          final id = locale.localeId.toLowerCase().replaceAll('-', '_');
-          if (id == prefix || id.startsWith('${prefix}_')) return locale.localeId;
-        }
+      if (_voiceLang != 'auto') {
+        final chosen = _matchLocale(locales, _voiceLang);
+        if (chosen != null) return chosen;
+        final name = _voiceLanguageNames[_voiceLang] ?? _voiceLang;
+        _showVoiceMessage(
+          '$name चं आवाजाचं पॅक फोनवर नाही. Settings → Google → Voice input → Offline speech recognition मध्ये $name डाउनलोड करा; तोपर्यंत फोनची भाषा वापरतो.',
+          actionLabel: 'भाषा',
+          onAction: _showVoiceLanguageSheet,
+        );
+        return null;
+      }
+      for (final prefix in const [
+        'mr',
+        'hi',
+        'gu',
+        'pa',
+        'ta',
+        'te',
+        'kn',
+        'bn',
+        'ml',
+        'en_in',
+      ]) {
+        final match = _matchLocale(locales, prefix);
+        if (match != null) return match;
       }
     } catch (_) {
       // Fall back to the phone's default language.
@@ -78,7 +144,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     return null;
   }
 
-  void _showVoiceMessage(String message) {
+  void _showVoiceMessage(
+    String message, {
+    String? actionLabel,
+    VoidCallback? onAction,
+  }) {
     if (!mounted) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -86,8 +156,152 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         SnackBar(
           content: Text(message),
           behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: actionLabel == null ? 3 : 6),
+          action: actionLabel == null
+              ? null
+              : SnackBarAction(
+                  label: actionLabel,
+                  onPressed: onAction ?? () {},
+                ),
         ),
       );
+  }
+
+  /// Says exactly what went wrong, because "ऐकता आलं नाही" alone leaves the
+  /// user with nothing to try next.
+  void _showVoiceError(String code) {
+    switch (code) {
+      case 'error_no_match':
+      case 'error_speech_timeout':
+        _showVoiceMessage(
+          'आवाज नीट ओळखता आला नाही. तोंडाजवळ माइक धरा, हळू बोला आणि गाण्याचं नाव पहिलं सांगा.',
+          actionLabel: 'पुन्हा बोला',
+          onAction: _toggleVoiceSearch,
+        );
+        break;
+      case 'error_permission':
+      case 'error_audio':
+        _showVoiceMessage(
+          'माइक्रोफोन वापरता आला नाही. फोनच्या Settings → Apps → SoundWave → Permissions मध्ये Microphone चालू करा.',
+          actionLabel: 'पुन्हा बोला',
+          onAction: _toggleVoiceSearch,
+        );
+        break;
+      case 'error_network':
+      case 'error_network_timeout':
+        _showVoiceMessage(
+          'इंटरनेट नाही म्हणून आवाज ओळखता आला नाही. इंटरनेट चालू करून पुन्हा बोला.',
+          actionLabel: 'पुन्हा बोला',
+          onAction: _toggleVoiceSearch,
+        );
+        break;
+      case 'error_busy':
+        _showVoiceMessage(
+          'आवाज सेवा व्यस्त आहे. थोड्या वेळाने पुन्हा प्रयत्न करा.',
+          actionLabel: 'पुन्हा बोला',
+          onAction: _toggleVoiceSearch,
+        );
+        break;
+      default:
+        _showVoiceMessage(
+          'आवाज ऐकता आला नाही. माइकची परवानगी आणि इंटरनेट तपासून पुन्हा बोला.',
+          actionLabel: 'पुन्हा बोला',
+          onAction: _toggleVoiceSearch,
+        );
+    }
+  }
+
+  /// Lets the user pick which language the phone should listen in. Tapping and
+  /// holding the mic opens this too.
+  Future<void> _showVoiceLanguageSheet() async {
+    final chosen = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: const Color(0xFF16161C),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 18, 20, 4),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'आवाजाची भाषा',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 0, 20, 10),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'ज्या भाषेत गाणं बोलाल ती भाषा निवडा — ओळख जास्त बरोबर होते.',
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 12.5),
+                ),
+              ),
+            ),
+            for (final entry in _voiceLanguageNames.entries)
+              ListTile(
+                dense: true,
+                title: Text(
+                  entry.value,
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                ),
+                trailing: _voiceLang == entry.key
+                    ? const Icon(
+                        Icons.check_rounded,
+                        size: 18,
+                        color: Colors.white70,
+                      )
+                    : null,
+                onTap: () => Navigator.of(sheetContext).pop(entry.key),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (chosen != null) await _setVoiceLang(chosen);
+  }
+
+  /// Searches with the spoken words, and when nothing comes back tries a
+  /// shorter version instead of leaving the user with an empty screen.
+  Future<void> _searchAfterVoice(String spoken) async {
+    final queries = voiceQueryFallbacks(spoken);
+    final notifier = ref.read(searchProvider.notifier);
+
+    for (var i = 0; i < queries.length; i++) {
+      final query = queries[i];
+      _searchController.text = query;
+      _searchController.selection = TextSelection.fromPosition(
+        TextPosition(offset: query.length),
+      );
+      await notifier.submitSearch(query, addToHistory: i == 0);
+      if (!mounted) return;
+
+      final state = ref.read(searchProvider);
+      if (state.onlineResults.isNotEmpty || state.results.isNotEmpty) {
+        if (i > 0) {
+          _showVoiceMessage('"$spoken" ने काही सापडलं नाही, "$query" ने शोधलं.');
+        }
+        return;
+      }
+    }
+
+    if (!mounted) return;
+    _showVoiceMessage(
+      '"$spoken" सापडलं नाही. नाव थोडं स्पष्ट बोला किंवा टाइप करा.',
+      actionLabel: 'पुन्हा बोला',
+      onAction: _toggleVoiceSearch,
+    );
   }
 
   Future<void> _toggleVoiceSearch() async {
@@ -98,29 +312,41 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     }
 
     HapticFeedback.mediumImpact();
-    final searchNotifier = ref.read(searchProvider.notifier);
+    var lastHeard = '';
+    var submitted = false;
+
+    void searchHeard(String words) {
+      if (submitted || words.trim().isEmpty) return;
+      submitted = true;
+      if (mounted) setState(() => _isListening = false);
+      _focusNode.unfocus();
+      HapticFeedback.selectionClick();
+      _searchAfterVoice(words.trim());
+    }
+
     try {
       final available = await _speech.initialize(
         onStatus: (status) {
           if (!mounted) return;
           if (status == 'done' || status == 'notListening') {
             setState(() => _isListening = false);
+            // Some phones finish without sending a final result — use the
+            // last thing that was heard instead of losing the words.
+            searchHeard(lastHeard);
           }
         },
         onError: (error) {
           if (!mounted) return;
           setState(() => _isListening = false);
-          _showVoiceMessage(
-            error.errorMsg == 'error_no_match'
-                ? 'काही समजलं नाही, पुन्हा प्रयत्न करा.'
-                : 'आवाज ऐकता आला नाही. माइक्रोफोनची परवानगी दिली आहे का ते पहा.',
-          );
+          _showVoiceError(error.errorMsg);
         },
       );
 
       if (!available) {
         _showVoiceMessage(
-          'या फोनवर व्हॉइस शोध उपलब्ध नाही. फोनच्या सेटिंग्जमध्ये Google व्हॉइस सेवा चालू करा.',
+          'या फोनवर व्हॉइस शोध उपलब्ध नाही. फोनच्या सेटिंग्जमध्ये Google आवाज सेवा चालू करा.',
+          actionLabel: 'भाषा',
+          onAction: _showVoiceLanguageSheet,
         );
         return;
       }
@@ -131,28 +357,31 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
       await _speech.listen(
         localeId: localeId,
-        listenFor: const Duration(seconds: 10),
+        listenFor: const Duration(seconds: 12),
         pauseFor: const Duration(seconds: 3),
         onResult: (result) {
           final words = result.recognizedWords.trim();
           if (words.isEmpty) return;
+          lastHeard = words;
 
-          _searchController.text = words;
-          _searchController.selection = TextSelection.fromPosition(
-            TextPosition(offset: words.length),
-          );
-
-          if (result.finalResult) {
-            if (mounted) setState(() => _isListening = false);
-            _focusNode.unfocus();
-            HapticFeedback.selectionClick();
-            searchNotifier.submitSearch(words);
+          if (!result.finalResult) {
+            _searchController.text = words;
+            _searchController.selection = TextSelection.fromPosition(
+              TextPosition(offset: words.length),
+            );
+            return;
           }
+
+          searchHeard(words);
         },
       );
     } catch (e) {
       if (mounted) setState(() => _isListening = false);
-      _showVoiceMessage('व्हॉइस शोध सुरू करता आला नाही. पुन्हा प्रयत्न करा.');
+      _showVoiceMessage(
+        'व्हॉइस शोध सुरू करता आला नाही. पुन्हा प्रयत्न करा.',
+        actionLabel: 'पुन्हा बोला',
+        onAction: _toggleVoiceSearch,
+      );
     }
   }
 
@@ -389,15 +618,22 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                           ),
                         ),
                       ),
-                    IconButton(
-                      tooltip: _isListening ? 'Stop listening' : 'Search by voice',
-                      onPressed: _toggleVoiceSearch,
-                      icon: Icon(
-                        _isListening ? Icons.mic_rounded : Icons.mic_none_rounded,
-                        color: _isListening
-                            ? activeTheme.highlightColor
-                            : AppColors.textMuted,
-                        size: 21,
+                    GestureDetector(
+                      onLongPress: _showVoiceLanguageSheet,
+                      child: IconButton(
+                        tooltip: _isListening
+                            ? 'ऐकतंय… थांबवायला दाबा'
+                            : 'आवाजाने शोध (दाबून धरा → भाषा)',
+                        onPressed: _toggleVoiceSearch,
+                        icon: Icon(
+                          _isListening
+                              ? Icons.mic_rounded
+                              : Icons.mic_none_rounded,
+                          color: _isListening
+                              ? activeTheme.highlightColor
+                              : AppColors.textMuted,
+                          size: 21,
+                        ),
                       ),
                     ),
                     if (searchState.query.isNotEmpty || _searchController.text.isNotEmpty)

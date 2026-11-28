@@ -271,10 +271,10 @@ class SearchNotifier extends Notifier<SearchState> {
     }
   }
 
-  Future<void> submitSearch(String query) async {
+  Future<void> submitSearch(String query, {bool addToHistory = true}) async {
     final trimmed = query.trim();
     if (trimmed.isEmpty) return;
-    await _storage.addRecentSearch(trimmed);
+    if (addToHistory) await _storage.addRecentSearch(trimmed);
     state = state.copyWith(
       recentSearches: _storage.getRecentSearches(),
     );
