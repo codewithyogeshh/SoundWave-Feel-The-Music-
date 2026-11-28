@@ -17,6 +17,7 @@ import 'package:soundwave/core/widgets/reveal.dart';
 import 'package:soundwave/features/online/widgets/download_options_sheet.dart';
 import 'package:soundwave/features/player/models/song_model.dart';
 import 'package:soundwave/features/player/presentation/widgets/lyrics_viewer.dart';
+import 'package:soundwave/features/player/presentation/widgets/voice_control_sheet.dart';
 import 'package:soundwave/features/player/services/queue_variety.dart';
 import 'package:soundwave/features/player/services/sleep_timer_service.dart';
 import 'package:soundwave/shared/providers/download_provider.dart';
@@ -455,6 +456,37 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            Tooltip(
+              message: 'Voice control',
+              child: Material(
+                color: Colors.transparent,
+                shape: const CircleBorder(),
+                child: InkResponse(
+                  radius: 22,
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    VoiceControlSheet.show(context);
+                  },
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withValues(alpha: 0.07),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.12),
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.keyboard_voice_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
             Tooltip(
               message: _showLyrics ? 'Show Artwork' : 'Karaoke Lyrics',
               child: Material(
