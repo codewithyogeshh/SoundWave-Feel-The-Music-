@@ -9,6 +9,7 @@ import 'package:soundwave/core/widgets/developer_spotlight_card.dart';
 import 'package:soundwave/core/widgets/glass_card.dart';
 import 'package:soundwave/core/widgets/song_track_tile.dart';
 import 'package:soundwave/features/library/services/library_storage_service.dart';
+import 'package:soundwave/features/online/services/download_service.dart';
 import 'package:soundwave/features/profile/services/app_share_service.dart';
 import 'package:soundwave/features/player/models/song_model.dart';
 import 'package:soundwave/features/update/services/update_service.dart';
@@ -26,6 +27,7 @@ class ProfileScreen extends ConsumerStatefulWidget {
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   String? _customUsername;
+  String? _customTagline;
 
   /// Version label taken from the build itself (`--dart-define=SOUNDWAVE_VERSION`),
   /// so the About screen shows the version that was actually shipped even when
@@ -41,7 +43,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final storage = ref.watch(storageServiceProvider);
     final currentTheme = ref.watch(themeProvider);
     final profile = storage.getUserProfile();
-    final username = _customUsername ?? (profile['username'] as String? ?? 'Yogesh Chavan');
+    final username = _customUsername ?? (profile['username'] as String? ?? 'My Music');
+    final tagline = _customTagline ??
+        (profile['tagline'] as String? ?? 'SoundWave VIP Music Engine');
     final totalPlayed = storage.getTotalSongsPlayed();
     final batterySaver = ref.watch(batterySaverProvider);
     final pauseOnUnplug = ref.watch(pauseOnHeadphoneUnplugProvider);
@@ -49,6 +53,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final stopWhenClosed = ref.watch(stopWhenAppClosedProvider);
     final highQualityStreams = ref.watch(highQualityStreamProvider);
     final audioFade = ref.watch(audioFadeProvider);
+    final downloadDestination = ref.watch(downloadDestinationProvider);
     final lyricsCacheCount = storage.getCachedLyricsCount();
     final lyricsCacheBytes = storage.getCachedLyricsBytes();
 
@@ -183,7 +188,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           bottom: 0,
                           right: 0,
                           child: GestureDetector(
-                            onTap: () => _showEditNameDialog(context, storage, profile, username),
+                            onTap: () => _showEditProfileDialog(context, storage, profile, username, tagline),
                             child: Container(
                               padding: const EdgeInsets.all(4),
                               decoration: BoxDecoration(
@@ -206,7 +211,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           GestureDetector(
-                            onTap: () => _showEditNameDialog(context, storage, profile, username),
+                            onTap: () => _showEditProfileDialog(context, storage, profile, username, tagline),
                             child: Row(
                               children: [
                                 Flexible(
@@ -228,7 +233,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           ),
                           const SizedBox(height: 3),
                           Text(
-                            'SoundWave VIP Music Engine',
+                            tagline,
                             style: AppTextStyles.artistName.copyWith(
                               fontSize: 12.5,
                               fontWeight: FontWeight.w700,
@@ -542,6 +547,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 subtitle: 'Offline audio, storage used, batch delete',
                 iconColor: currentTheme.secondaryAccent,
                 onTap: () => context.push('/downloads'),
+              ),
+              const SizedBox(height: 10),
+
+              _buildSettingsTile(
+                icon: Icons.folder_special_rounded,
+                title: 'Download Location',
+                subtitle: downloadDestination == DownloadDestination.phoneStorage
+                    ? 'Phone storage — /Music/SoundWave (shows in other music apps)'
+                    : 'Inside SoundWave — private offline storage',
+                iconColor: currentTheme.primaryAccent,
+                onTap: () => _showDownloadLocationSheet(
+                  currentTheme,
+                  downloadDestination,
+                ),
               ),
               const SizedBox(height: 10),
 
@@ -1108,6 +1127,174 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     Duration(milliseconds: 3000),
   ];
 
+  void _showDownloadLocationSheet(
+    AppThemeType activeTheme,
+    DownloadDestination selected,
+  ) {
+    final options = <({
+      DownloadDestination destination,
+      IconData icon,
+      String title,
+      String subtitle,
+    })>[
+      (
+        destination: DownloadDestination.inApp,
+        icon: Icons.offline_pin_rounded,
+        title: 'Inside SoundWave',
+        subtitle:
+            'Recommended — private offline storage with cover art, plays only in SoundWave',
+      ),
+      (
+        destination: DownloadDestination.phoneStorage,
+        icon: Icons.folder_open_rounded,
+        title: 'Phone storage — /Music/SoundWave',
+        subtitle:
+            'Audio file shows up in other music apps and file managers too',
+      ),
+    ];
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        child: SingleChildScrollView(
+          child: Container(
+            margin: const EdgeInsets.all(10),
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+            decoration: BoxDecoration(
+              color: activeTheme.secondaryBackground,
+              borderRadius: BorderRadius.circular(26),
+              border: Border.all(
+                color: activeTheme.highlightColor.withValues(alpha: 0.35),
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.folder_special_rounded,
+                      color: activeTheme.highlightColor,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Download Location',
+                      style: AppTextStyles.songTitle.copyWith(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Choose once — every song after this downloads straight there, no question asked.',
+                  style: AppTextStyles.subtitle.copyWith(
+                    fontSize: 12,
+                    height: 1.35,
+                    color: Colors.white.withValues(alpha: 0.68),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                ...options.map((option) {
+                  final isSelected = option.destination == selected;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        ref
+                            .read(downloadDestinationProvider.notifier)
+                            .setDestination(option.destination);
+                        Navigator.of(sheetContext).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              option.destination == DownloadDestination.inApp
+                                  ? 'Downloads will be saved inside SoundWave'
+                                  : 'Downloads will be saved to /Music/SoundWave',
+                            ),
+                            duration: const Duration(seconds: 1),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? activeTheme.primaryAccent.withValues(alpha: 0.22)
+                              : Colors.white.withValues(alpha: 0.05),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: isSelected
+                                ? activeTheme.highlightColor.withValues(alpha: 0.7)
+                                : Colors.white.withValues(alpha: 0.1),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              option.icon,
+                              size: 20,
+                              color: isSelected
+                                  ? activeTheme.highlightColor
+                                  : Colors.white70,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    option.title,
+                                    style: TextStyle(
+                                      fontSize: 13.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: isSelected
+                                          ? activeTheme.highlightColor
+                                          : Colors.white,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    option.subtitle,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      height: 1.3,
+                                      color: Colors.white.withValues(alpha: 0.6),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (isSelected)
+                              Icon(
+                                Icons.check_circle_rounded,
+                                size: 20,
+                                color: activeTheme.highlightColor,
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showFadeSheet(AppThemeType activeTheme) {
     final selected = ref.read(audioFadeProvider);
 
@@ -1535,13 +1722,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  void _showEditNameDialog(
+  void _showEditProfileDialog(
     BuildContext context,
     LibraryStorageService storage,
     Map<String, dynamic> profile,
     String currentName,
+    String currentTagline,
   ) {
-    final controller = TextEditingController(text: currentName);
+    final nameController = TextEditingController(text: currentName);
+    final taglineController = TextEditingController(text: currentTagline);
     final activeTheme = ref.read(themeProvider);
     showDialog<void>(
       context: context,
@@ -1549,20 +1738,46 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         return AlertDialog(
           backgroundColor: activeTheme.secondaryBackground,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-          title: const Text('Edit Profile Name', style: TextStyle(color: Colors.white)),
-          content: TextField(
-            controller: controller,
-            style: const TextStyle(color: Colors.white),
-            decoration: InputDecoration(
-              hintText: 'Enter your name',
-              hintStyle: const TextStyle(color: Colors.white54),
-              enabledBorder: UnderlineInputBorder(
-                borderSide: BorderSide(color: activeTheme.primaryAccent),
+          title: const Text('Edit Profile', style: TextStyle(color: Colors.white)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                style: const TextStyle(color: Colors.white),
+                textCapitalization: TextCapitalization.words,
+                decoration: InputDecoration(
+                  labelText: 'Your name',
+                  labelStyle: const TextStyle(color: Colors.white54),
+                  hintText: 'Enter your name',
+                  hintStyle: const TextStyle(color: Colors.white38),
+                  enabledBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: activeTheme.primaryAccent),
+                  ),
+                  focusedBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: activeTheme.highlightColor, width: 2),
+                  ),
+                ),
               ),
-              focusedBorder: UnderlineInputBorder(
-                borderSide: BorderSide(color: activeTheme.highlightColor, width: 2),
+              const SizedBox(height: 16),
+              TextField(
+                controller: taglineController,
+                style: const TextStyle(color: Colors.white),
+                textCapitalization: TextCapitalization.sentences,
+                decoration: InputDecoration(
+                  labelText: 'Status line',
+                  labelStyle: const TextStyle(color: Colors.white54),
+                  hintText: 'e.g. Bass lover, night listener',
+                  hintStyle: const TextStyle(color: Colors.white38),
+                  enabledBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: activeTheme.primaryAccent),
+                  ),
+                  focusedBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: activeTheme.highlightColor, width: 2),
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
           actions: [
             TextButton(
@@ -1571,13 +1786,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ),
             TextButton(
               onPressed: () {
-                final trimmed = controller.text.trim();
-                if (trimmed.isNotEmpty) {
+                final trimmedName = nameController.text.trim();
+                final trimmedTagline = taglineController.text.trim();
+                if (trimmedName.isNotEmpty) {
                   setState(() {
-                    _customUsername = trimmed;
+                    _customUsername = trimmedName;
+                    _customTagline = trimmedTagline.isEmpty
+                        ? 'SoundWave VIP Music Engine'
+                        : trimmedTagline;
                   });
                   final updated = Map<String, dynamic>.from(profile);
-                  updated['username'] = trimmed;
+                  updated['username'] = trimmedName;
+                  updated['tagline'] = trimmedTagline;
                   storage.saveUserProfile(updated);
                 }
                 Navigator.pop(ctx);
@@ -1593,6 +1813,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           ],
         );
       },
-    ).whenComplete(controller.dispose);
+    ).whenComplete(() {
+      nameController.dispose();
+      taglineController.dispose();
+    });
   }
 }

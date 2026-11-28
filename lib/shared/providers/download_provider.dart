@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:soundwave/features/online/services/download_service.dart';
 import 'package:soundwave/features/player/models/song_model.dart';
 import 'package:soundwave/shared/providers/library_provider.dart';
+import 'package:soundwave/shared/providers/playback_prefs_provider.dart';
 
 class DownloadState {
   final Map<String, double> progressMap; // songId -> progress (0.0 to 1.0)
@@ -130,19 +131,21 @@ class DownloadNotifier extends Notifier<DownloadState> {
   /// make every track slower and the progress bars jump around.
   Future<int> downloadMany(
     Iterable<SongModel> songs, {
-    DownloadDestination destination = DownloadDestination.inApp,
+    DownloadDestination? destination,
   }) async {
+    final DownloadDestination target =
+        destination ?? ref.read(downloadDestinationProvider);
     var succeeded = 0;
     for (final song in songs) {
       if (state.isDownloading(song.id)) continue;
-      final result = await downloadSong(song, destination: destination);
+      final result = await downloadSong(song, destination: target);
       if (result.success) succeeded++;
     }
     return succeeded;
   }
 
   Future<void> retry(SongModel song) async {
-    await downloadSong(song);
+    await downloadSong(song, destination: ref.read(downloadDestinationProvider));
   }
 
   Future<void> retryAll() async {

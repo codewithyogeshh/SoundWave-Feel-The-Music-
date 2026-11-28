@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:soundwave/features/online/services/download_service.dart';
 import 'package:soundwave/features/online/services/online_music_service.dart';
 import 'package:soundwave/shared/providers/library_provider.dart';
 import 'package:soundwave/shared/providers/player_provider.dart';
@@ -112,6 +113,37 @@ class StopWhenAppClosedNotifier extends Notifier<bool> {
     } catch (_) {}
     try {
       await ref.read(storageServiceProvider).setStopWhenSwipedAway(value);
+    } catch (_) {}
+  }
+}
+
+/// Where new downloads are saved. Picked once in Settings so the app never has
+/// to ask again: tapping download simply starts the download there.
+final downloadDestinationProvider =
+    NotifierProvider<DownloadDestinationNotifier, DownloadDestination>(
+      DownloadDestinationNotifier.new,
+    );
+
+class DownloadDestinationNotifier extends Notifier<DownloadDestination> {
+  @override
+  DownloadDestination build() {
+    try {
+      return ref.read(storageServiceProvider).getDownloadDestination() == 'phone'
+          ? DownloadDestination.phoneStorage
+          : DownloadDestination.inApp;
+    } catch (_) {
+      return DownloadDestination.inApp;
+    }
+  }
+
+  Future<void> setDestination(DownloadDestination destination) async {
+    state = destination;
+    try {
+      await ref
+          .read(storageServiceProvider)
+          .setDownloadDestination(
+            destination == DownloadDestination.phoneStorage ? 'phone' : 'inApp',
+          );
     } catch (_) {}
   }
 }

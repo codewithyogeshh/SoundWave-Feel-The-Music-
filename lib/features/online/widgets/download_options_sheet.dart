@@ -8,10 +8,26 @@ import 'package:soundwave/features/online/services/download_service.dart';
 import 'package:soundwave/features/player/models/song_model.dart';
 import 'package:soundwave/shared/providers/download_provider.dart';
 import 'package:soundwave/shared/providers/library_provider.dart';
+import 'package:soundwave/shared/providers/playback_prefs_provider.dart';
 import 'package:soundwave/shared/providers/player_provider.dart';
 import 'package:soundwave/shared/providers/theme_provider.dart';
 
+/// Starts the download straight away in the folder chosen in Settings, so the
+/// app never asks "where should this go?" again. The sheet is only shown for a
+/// song that is already downloaded or downloading (progress, play, delete).
 void showDownloadOptionsSheet(BuildContext context, SongModel song) {
+  final container = ProviderScope.containerOf(context, listen: false);
+  final isDownloaded = container
+      .read(libraryProvider)
+      .downloadedSongs
+      .any((s) => s.id == song.id);
+  final isDownloading = container.read(downloadProvider).isDownloading(song.id);
+
+  if (!isDownloaded && !isDownloading) {
+    _startDownload(context, container, song);
+    return;
+  }
+
   showModalBottomSheet(
     context: context,
     backgroundColor: Theme.of(context).colorScheme.surface,
@@ -20,6 +36,43 @@ void showDownloadOptionsSheet(BuildContext context, SongModel song) {
       borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
     ),
     builder: (ctx) => DownloadOptionsSheet(song: song),
+  );
+}
+
+Future<void> _startDownload(
+  BuildContext context,
+  ProviderContainer container,
+  SongModel song,
+) async {
+  final destination = container.read(downloadDestinationProvider);
+  final toPhone = destination == DownloadDestination.phoneStorage;
+  final messenger = ScaffoldMessenger.of(context);
+  messenger.showSnackBar(
+    SnackBar(
+      content: Text(
+        toPhone
+            ? 'Downloading "${song.title}" to phone storage (Music/SoundWave)…'
+            : 'Downloading "${song.title}" inside SoundWave…',
+      ),
+      duration: const Duration(seconds: 2),
+      behavior: SnackBarBehavior.floating,
+    ),
+  );
+  final res = await container
+      .read(downloadProvider.notifier)
+      .downloadSong(song, destination: destination);
+  messenger.showSnackBar(
+    SnackBar(
+      content: Text(
+        res.success
+            ? (toPhone
+                  ? 'Saved to phone storage (Music/SoundWave)'
+                  : 'Downloaded "${song.title}" for offline playback!')
+            : 'Download failed: ${res.error ?? "Unknown error"}',
+      ),
+      backgroundColor: res.success ? null : Colors.redAccent,
+      behavior: SnackBarBehavior.floating,
+    ),
   );
 }
 
@@ -36,6 +89,9 @@ class DownloadOptionsSheet extends ConsumerWidget {
     final downloadState = ref.watch(downloadProvider);
     final libState = ref.watch(libraryProvider);
     final activeTheme = ref.watch(themeProvider);
+    final toPhoneStorage =
+        ref.watch(downloadDestinationProvider) ==
+        DownloadDestination.phoneStorage;
     final isDownloading = downloadState.isDownloading(song.id);
     final progress = downloadState.getProgress(song.id);
     final downloadedSong =
@@ -213,7 +269,7 @@ class DownloadOptionsSheet extends ConsumerWidget {
 
             // Section Title
             Text(
-              isAlreadyDownloaded ? 'Song Downloaded' : 'Choose Download Location',
+              isAlreadyDownloaded ? 'Song Downloaded' : 'Saving Download',
               style: AppTextStyles.sectionTitle.copyWith(
                 fontSize: 16.5,
                 fontWeight: FontWeight.w800,
@@ -248,7 +304,9 @@ class DownloadOptionsSheet extends ConsumerWidget {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            'Song and cover banner saved offline in in-app storage.',
+                            toPhoneStorage
+                                ? 'Audio saved to /Music/SoundWave on this phone.'
+                                : 'Song and cover banner saved in SoundWave offline storage.',
                             style: TextStyle(
                               color: AppColors.textSecondary.withValues(alpha: 0.9),
                               fontSize: 11,
@@ -262,98 +320,6 @@ class DownloadOptionsSheet extends ConsumerWidget {
               ),
               const SizedBox(height: 12),
             ],
-
-            // Option 1: In-App Download (Default / Recommended)
-            _buildDownloadOption(
-              context: context,
-              icon: Icons.offline_pin_rounded,
-              iconColor: activeTheme.primaryAccent,
-              title: 'Download in SoundWave (In-App)',
-              subtitle: 'Saves high-res song & cover banner in SoundWave for offline playback.',
-              badge: '(Recommended)',
-              badgeColor: activeTheme.primaryAccent,
-              isEnabled: !isDownloading,
-              onTap: () async {
-                Navigator.pop(context);
-                final res = await ref.read(downloadProvider.notifier).downloadSong(
-                      song,
-                      destination: DownloadDestination.inApp,
-                    );
-                if (context.mounted) {
-                  if (res.success) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Row(
-                          children: [
-                            const Icon(Icons.check_circle, color: Colors.greenAccent, size: 20),
-                            const SizedBox(width: 8),
-                            Expanded(child: Text('Downloaded "${song.title}" for offline playback!')),
-                          ],
-                        ),
-                        backgroundColor: AppColors.secondaryBackground,
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Download failed: ${res.error ?? "Unknown error"}'),
-                        backgroundColor: Colors.redAccent,
-                      ),
-                    );
-                  }
-                }
-              },
-            ),
-
-            const SizedBox(height: 10),
-
-            // Option 2: Phone Device Storage (/Music/SoundWave)
-            _buildDownloadOption(
-              context: context,
-              icon: Icons.folder_open_rounded,
-              iconColor: activeTheme.secondaryAccent,
-              title: 'Save to Phone Storage (Public Music)',
-              subtitle: 'Saves audio to /Music/SoundWave and caches cover banner for offline playback.',
-              badge: 'Export',
-              badgeColor: activeTheme.secondaryAccent,
-              isEnabled: !isDownloading,
-              onTap: () async {
-                Navigator.pop(context);
-                final res = await ref.read(downloadProvider.notifier).downloadSong(
-                      song,
-                      destination: DownloadDestination.phoneStorage,
-                    );
-                if (context.mounted) {
-                  if (res.success) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Row(
-                          children: [
-                            const Icon(Icons.check_circle, color: Colors.greenAccent, size: 20),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Saved to phone storage (${res.savedPath?.split('/').last ?? "Music folder"})!',
-                              ),
-                            ),
-                          ],
-                        ),
-                        backgroundColor: AppColors.secondaryBackground,
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Download failed: ${res.error ?? "Unknown error"}'),
-                        backgroundColor: Colors.redAccent,
-                      ),
-                    );
-                  }
-                }
-              },
-            ),
 
             if (isAlreadyDownloaded) ...[
               const SizedBox(height: 10),
