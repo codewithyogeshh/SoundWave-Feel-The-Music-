@@ -28,6 +28,23 @@ void main() {
     expect(parseVoiceCommand('Song skip please'), VoiceCommand.next);
   });
 
+  test('understands volume up, volume down and mute', () {
+    expect(parseVoiceCommand('आवाज वाढव'), VoiceCommand.volumeUp);
+    expect(parseVoiceCommand('आवाज कमी कर'), VoiceCommand.volumeDown);
+    expect(parseVoiceCommand('म्यूट कर'), VoiceCommand.mute);
+    expect(parseVoiceCommand('थोडा मोठा आवाज कर'), VoiceCommand.volumeUp);
+    expect(parseVoiceCommand('आवाज हळू कर'), VoiceCommand.volumeDown);
+    expect(parseVoiceCommand('volume up'), VoiceCommand.volumeUp);
+    expect(parseVoiceCommand('Volume Down please'), VoiceCommand.volumeDown);
+    expect(parseVoiceCommand('mute'), VoiceCommand.mute);
+    expect(parseVoiceCommand('आवाज़ बढ़ा'), VoiceCommand.volumeUp);
+  });
+
+  test('"आवाज बंद कर" mutes instead of pausing', () {
+    expect(parseVoiceCommand('आवाज बंद कर'), VoiceCommand.mute);
+    expect(parseVoiceCommand('गाणं बंद कर'), VoiceCommand.pause);
+  });
+
   test('returns null for unrelated speech', () {
     expect(parseVoiceCommand(''), isNull);
     expect(parseVoiceCommand('आज हवामान कसं आहे'), isNull);

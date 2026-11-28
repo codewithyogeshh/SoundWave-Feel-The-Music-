@@ -26,6 +26,7 @@ class PlayerState {
   final bool isShuffle;
   final AudioServiceRepeatMode repeatMode;
   final double playbackSpeed;
+  final double volume;
 
   const PlayerState({
     this.currentSong,
@@ -38,6 +39,7 @@ class PlayerState {
     this.isShuffle = false,
     this.repeatMode = AudioServiceRepeatMode.none,
     this.playbackSpeed = 1.0,
+    this.volume = 1.0,
   });
 
   PlayerState copyWith({
@@ -51,6 +53,7 @@ class PlayerState {
     bool? isShuffle,
     AudioServiceRepeatMode? repeatMode,
     double? playbackSpeed,
+    double? volume,
   }) {
     return PlayerState(
       currentSong: currentSong ?? this.currentSong,
@@ -63,6 +66,7 @@ class PlayerState {
       isShuffle: isShuffle ?? this.isShuffle,
       repeatMode: repeatMode ?? this.repeatMode,
       playbackSpeed: playbackSpeed ?? this.playbackSpeed,
+      volume: volume ?? this.volume,
     );
   }
 }
@@ -81,6 +85,9 @@ class PlayerNotifier extends Notifier<PlayerState> {
   bool _userStartedPlayback = false;
   Timer? _sessionSaveTimer;
   String? _lastSavedSignature;
+
+  // Volume restored when unmuting, so "पुन्हा आवाज" brings back the old level.
+  double _volumeBeforeMute = 0.7;
 
   // Actual listening time, accrued while the music is really playing.
   int _listenedBufferMs = 0;
@@ -128,6 +135,11 @@ class PlayerNotifier extends Notifier<PlayerState> {
     if ((savedSpeed - 1.0).abs() > 0.001) {
       unawaited(_handler.setPlaybackSpeed(savedSpeed));
     }
+    final savedVolume = _savedPlaybackVolume();
+    if ((savedVolume - 1.0).abs() > 0.001) {
+      unawaited(_handler.setPlaybackVolume(savedVolume));
+      if (savedVolume > 0.01) _volumeBeforeMute = savedVolume;
+    }
 
     // Restore after build() returns so the notifier state exists.
     unawaited(Future.microtask(_restoreLastSession));
@@ -137,6 +149,7 @@ class PlayerNotifier extends Notifier<PlayerState> {
       queue: initialSongs,
       duration: initialSong?.duration ?? Duration.zero,
       playbackSpeed: savedSpeed,
+      volume: savedVolume,
     );
   }
 
@@ -604,6 +617,48 @@ class PlayerNotifier extends Notifier<PlayerState> {
       await ref.read(storageServiceProvider).savePlaybackSpeed(speed);
     } catch (_) {
       // Allows isolated tests without a storage override.
+    }
+  }
+
+  /// Sets the playback volume (0.0 = silent, 1.0 = full) and remembers it, so
+  /// the level survives an app restart.
+  Future<void> setVolume(double volume) async {
+    final clamped = volume.clamp(0.0, 1.0);
+    if (clamped > 0.01) _volumeBeforeMute = clamped;
+    state = state.copyWith(volume: clamped);
+    await _handler.setPlaybackVolume(clamped);
+    try {
+      await ref.read(storageServiceProvider).savePlaybackVolume(clamped);
+    } catch (_) {
+      // Allows isolated tests without a storage override.
+    }
+  }
+
+  /// One step louder, up to full volume.
+  Future<void> volumeUp({double step = 0.15}) =>
+      setVolume(state.volume + step);
+
+  /// One step quieter, down to silence.
+  Future<void> volumeDown({double step = 0.15}) =>
+      setVolume(state.volume - step);
+
+  /// Silences the player, or brings the previous volume back. Returns true when
+  /// the player is now muted.
+  Future<bool> toggleMute() async {
+    if (state.volume > 0.01) {
+      _volumeBeforeMute = state.volume;
+      await setVolume(0);
+      return true;
+    }
+    await setVolume(_volumeBeforeMute <= 0.01 ? 0.7 : _volumeBeforeMute);
+    return false;
+  }
+
+  double _savedPlaybackVolume() {
+    try {
+      return ref.read(storageServiceProvider).getPlaybackVolume();
+    } catch (_) {
+      return 1.0;
     }
   }
 

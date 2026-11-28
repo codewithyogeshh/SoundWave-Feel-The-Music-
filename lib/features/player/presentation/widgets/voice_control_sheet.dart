@@ -254,6 +254,21 @@ class _VoiceControlSheetState extends ConsumerState<VoiceControlSheet> {
         return isFav
             ? '"${song.title}" आवडत्या गाण्यांत टाकलं.'
             : '"${song.title}" आवडत्या गाण्यांतून काढलं.';
+      case VoiceCommand.volumeUp:
+        await player.volumeUp();
+        final louder = (ref.read(playerProvider).volume * 100).round();
+        return louder >= 100
+            ? 'आवाज पूर्ण वाढवला (100%).'
+            : 'आवाज वाढवला — आता $louder%.';
+      case VoiceCommand.volumeDown:
+        await player.volumeDown();
+        final quieter = (ref.read(playerProvider).volume * 100).round();
+        return quieter <= 0
+            ? 'आवाज पूर्ण कमी केला (म्यूट).'
+            : 'आवाज कमी केला — आता $quieter%.';
+      case VoiceCommand.mute:
+        final muted = await player.toggleMute();
+        return muted ? 'आवाज बंद केला (म्यूट).' : 'म्यूट काढलं — आवाज पुन्हा सुरू.';
     }
   }
 
@@ -303,7 +318,7 @@ class _VoiceControlSheetState extends ConsumerState<VoiceControlSheet> {
           ),
           Text(
             song == null
-                ? 'आवाजाने गाणं लावा, थांबवा किंवा पुढे करा.'
+                ? 'आवाजाने गाणं लावा, थांबवा, पुढे करा किंवा आवाज वाढवा-कमी करा.'
                 : 'सध्या: ${song.title}',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,

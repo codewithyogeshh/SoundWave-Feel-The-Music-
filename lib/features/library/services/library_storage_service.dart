@@ -33,6 +33,7 @@ class LibraryStorageService {
   static const String _keyLastIndex = 'sw_last_index';
   static const String _keyLastPositionMs = 'sw_last_position_ms';
   static const String _keyPlaybackSpeed = 'sw_playback_speed';
+  static const String _keyPlaybackVolume = 'sw_playback_volume';
   static const String _keyListenedSeconds = 'sw_stats_listened_seconds';
   static const String _keyPauseOnUnplug = 'sw_pause_on_headphone_unplug';
   static const String _keyBatterySaver = 'sw_battery_saver';
@@ -157,6 +158,16 @@ class LibraryStorageService {
 
   Future<void> savePlaybackSpeed(double speed) async {
     await _prefs.setDouble(_keyPlaybackSpeed, speed.clamp(0.5, 2.5));
+  }
+
+  // --- PLAYBACK VOLUME ---
+  double getPlaybackVolume() {
+    final volume = _prefs.getDouble(_keyPlaybackVolume) ?? 1.0;
+    return volume.clamp(0.0, 1.0);
+  }
+
+  Future<void> savePlaybackVolume(double volume) async {
+    await _prefs.setDouble(_keyPlaybackVolume, volume.clamp(0.0, 1.0));
   }
 
   // --- PLAYLISTS ---

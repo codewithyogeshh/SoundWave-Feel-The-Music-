@@ -1,6 +1,18 @@
 /// Spoken playback commands understood by the app, in Marathi, Hindi and
 /// English. Kept as a pure function so it can be unit tested without a phone.
-enum VoiceCommand { next, previous, pause, resume, restart, shuffle, repeat, favorite }
+enum VoiceCommand {
+  next,
+  previous,
+  pause,
+  resume,
+  restart,
+  shuffle,
+  repeat,
+  favorite,
+  volumeUp,
+  volumeDown,
+  mute,
+}
 
 class _CommandRule {
   final VoiceCommand command;
@@ -12,6 +24,43 @@ class _CommandRule {
 /// Checked top to bottom, so the first match wins. Longer / more specific
 /// phrases are listed before shorter ones.
 const List<_CommandRule> _rules = [
+  // Volume rules come first: "आवाज बंद कर" is mute, not pause.
+  _CommandRule(VoiceCommand.mute, [
+    'म्यूट',
+    'mute',
+    'निःशब्द',
+    'शांत कर',
+    'आवाज बंद कर',
+    'आवाज बंद',
+    'sound off',
+    'silence',
+    'आवाज़ बंद',
+  ]),
+  _CommandRule(VoiceCommand.volumeUp, [
+    'आवाज वाढव',
+    'आवाज वाढ',
+    'आवाज मोठा',
+    'मोठा आवाज',
+    'आवाज जास्त',
+    'volume up',
+    'louder',
+    'increase volume',
+    'आवाज़ बढ़ा',
+    'आवाज बढ़ा',
+  ]),
+  _CommandRule(VoiceCommand.volumeDown, [
+    'आवाज कमी कर',
+    'आवाज कमी',
+    'आवाज हळू',
+    'हळू कर',
+    'आवाज मंद',
+    'volume down',
+    'quieter',
+    'lower volume',
+    'decrease volume',
+    'आवाज़ कम',
+    'आवाज कम',
+  ]),
   _CommandRule(VoiceCommand.repeat, [
     'पुन्हा पुन्हा',
     'पुनरावृत्ती',
@@ -96,6 +145,9 @@ const List<String> voiceCommandExamples = [
   'शफल',
   'पुन्हा पुन्हा',
   'आवडतं',
+  'आवाज वाढव',
+  'आवाज कमी कर',
+  'म्यूट कर',
 ];
 
 String _normalize(String input) {
